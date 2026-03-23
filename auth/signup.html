@@ -1,0 +1,65 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>إنشاء حساب - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css" />
+</head>
+<body data-page="signup">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <a class="auth-brand" href="../index.html">BODA Partner Portal</a>
+      <h1 class="auth-title">إنشاء حساب جديد</h1>
+      <p class="auth-subtitle">سجل بياناتك وسنرسل لك كود OTP لتأكيد البريد الإلكتروني.</p>
+      <p id="auth-status" class="status-note hidden" aria-live="polite"></p>
+
+      <form id="signupForm" class="portal-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="signupName">الاسم الكامل</label>
+            <input id="signupName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="signupPhone">رقم الهاتف</label>
+            <input id="signupPhone" type="tel" required />
+          </div>
+        </div>
+        <div class="field">
+          <label for="signupEmail">البريد الإلكتروني</label>
+          <input id="signupEmail" type="email" autocomplete="email" required />
+        </div>
+        <div class="field-grid">
+          <div class="field">
+            <label for="signupPassword">كلمة المرور</label>
+            <input id="signupPassword" type="password" minlength="8" autocomplete="new-password" required />
+          </div>
+          <div class="field">
+            <label for="signupConfirm">تأكيد كلمة المرور</label>
+            <input id="signupConfirm" type="password" minlength="8" autocomplete="new-password" required />
+          </div>
+        </div>
+        <button type="submit" class="btn-primary">إرسال كود التحقق</button>
+      </form>
+
+      <div class="auth-links">
+        <span>لديك حساب بالفعل؟</span>
+        <a href="login.html">تسجيل الدخول</a>
+      </div>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
+  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
+  <script src="../assets/js/session.js?v=20260309-3"></script>
+  <script src="../assets/js/auth.js?v=20260309-3"></script>
+</body>
+</html>
+
+
+

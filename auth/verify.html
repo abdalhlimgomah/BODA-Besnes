@@ -1,0 +1,53 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>تأكيد البريد - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css" />
+</head>
+<body data-page="verify">
+  <main class="auth-shell">
+    <section class="auth-card">
+      <a class="auth-brand" href="../index.html">BODA Partner Portal</a>
+      <h1 class="auth-title">تأكيد البريد الإلكتروني</h1>
+      <p class="auth-subtitle">
+        أدخل رمز OTP المكوّن من 6 أرقام الذي تم إرساله إلى:
+        <strong id="verifyEmail">-</strong>
+      </p>
+      <p id="auth-status" class="status-note hidden" aria-live="polite"></p>
+
+      <form id="verifyForm" class="portal-form">
+        <div id="otpContainer" class="otp-wrap">
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+          <input class="otp-digit" inputmode="numeric" maxlength="1" />
+        </div>
+        <button type="submit" class="btn-primary">تأكيد وإنشاء الحساب</button>
+      </form>
+
+      <div class="otp-tools">
+        <button type="button" id="resendOtpBtn" class="btn-secondary">إعادة إرسال الكود</button>
+        <span id="resendCountdown" class="otp-meta hidden"></span>
+      </div>
+      <p id="resendInfo" class="otp-meta"></p>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
+  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
+  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
+  <script src="../assets/js/session.js?v=20260309-3"></script>
+  <script src="../assets/js/auth.js?v=20260309-3"></script>
+</body>
+</html>
+
+
+

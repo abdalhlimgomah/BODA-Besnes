@@ -1,0 +1,73 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>الحساب - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <strong class="brand-title">BODA Partner Portal</strong>
+      <div class="topbar-actions">
+        <span id="currentUserLabel" class="pill">-</span>
+        <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+      </div>
+      <nav class="tabs-nav">
+        <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="orders" href="orders.html">الطلبات</a>
+        <a data-nav="account" href="account.html">الحساب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrap stack">
+    <section class="section-card">
+      <div class="section-head">
+        <h2>بيانات الحساب</h2>
+      </div>
+      <p class="muted">يمكنك تعديل بياناتك الأساسية. البريد الإلكتروني مرتبط بالحساب الحالي.</p>
+    </section>
+
+    <p id="accountStatus" class="status-note hidden" aria-live="polite"></p>
+
+    <section class="section-card">
+      <form id="accountForm" class="portal-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="accountName">الاسم</label>
+            <input id="accountName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="accountPhone">الهاتف</label>
+            <input id="accountPhone" type="tel" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="accountEmail">البريد الإلكتروني</label>
+          <input id="accountEmail" type="email" readonly />
+        </div>
+        <button type="submit" class="btn-primary">حفظ التعديلات</button>
+      </form>
+    </section>
+
+    <section class="section-card">
+      <div class="section-head">
+        <h3>ملخص بيانات الشراكة</h3>
+      </div>
+      <div id="partnerSummary"></div>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
+  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
+  <script src="../assets/js/session.js?v=20260309-3"></script>
+  <script src="../assets/js/dashboard-account.js?v=20260309-3"></script>
+</body>
+</html>
+

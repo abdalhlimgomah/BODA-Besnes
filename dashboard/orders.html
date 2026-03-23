@@ -1,0 +1,77 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>إدارة الطلبات - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <strong class="brand-title">BODA Partner Portal</strong>
+      <div class="topbar-actions">
+        <span id="currentUserLabel" class="pill">-</span>
+        <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+      </div>
+      <nav class="tabs-nav">
+        <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="orders" href="orders.html">الطلبات</a>
+        <a data-nav="account" href="account.html">الحساب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrap stack">
+    <section class="section-card">
+      <div class="section-head">
+        <h2>طلبات منتجاتي</h2>
+      </div>
+      <div class="stats-grid">
+        <article class="stat-tile">
+          <small>إجمالي الطلبات</small>
+          <strong id="ordersTotal">0</strong>
+        </article>
+        <article class="stat-tile">
+          <small>الطلبات النشطة</small>
+          <strong id="ordersActive">0</strong>
+        </article>
+        <article class="stat-tile">
+          <small>قيد المراجعة</small>
+          <strong id="ordersPending">0</strong>
+        </article>
+        <article class="stat-tile">
+          <small>تم التسليم</small>
+          <strong id="ordersDelivered">0</strong>
+        </article>
+      </div>
+    </section>
+
+    <p id="ordersStatus" class="status-note hidden" aria-live="polite"></p>
+
+    <section class="section-card">
+      <div class="filter-row">
+        <button class="chip active" data-filter="all" type="button">كل الطلبات</button>
+        <button class="chip" data-filter="pending" type="button">قيد المراجعة</button>
+        <button class="chip" data-filter="preparing" type="button">جاري التجهيز</button>
+        <button class="chip" data-filter="shipped" type="button">تم الشحن</button>
+        <button class="chip" data-filter="delivered" type="button">تم التسليم</button>
+      </div>
+    </section>
+
+    <section>
+      <div id="ordersList" class="orders-list"></div>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
+  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
+  <script src="../assets/js/session.js?v=20260309-3"></script>
+  <script src="../assets/js/dashboard-orders.js?v=20260309-3"></script>
+</body>
+</html>
+

@@ -1,0 +1,117 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>بيانات الشراكة - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <strong class="brand-title">BODA Partner Portal</strong>
+      <div class="topbar-actions">
+        <a class="btn btn-secondary" href="../auth/login.html">تسجيل الدخول</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="page-wrap stack">
+    <section class="section-card">
+      <div class="section-head">
+        <h2>نموذج بيانات الشراكة</h2>
+      </div>
+      <p class="muted">أكمل جميع البيانات التالية بشكل صحيح ثم أرسل الطلب لفتح لوحة الشريك.</p>
+    </section>
+
+    <p id="partnerStatus" class="status-note hidden" aria-live="polite"></p>
+
+    <section id="existingPartnerBox" class="section-card hidden">
+      <div class="section-head">
+        <h3>بيانات الشراكة موجودة بالفعل</h3>
+      </div>
+      <p id="existingPartnerText" class="muted"></p>
+      <div class="inline-actions">
+        <button id="openDashboardBtn" type="button" class="btn-primary">فتح لوحة الشريك</button>
+      </div>
+    </section>
+
+    <section id="partnerFormCard" class="section-card">
+      <form id="partnerForm" class="portal-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="owner_name">اسم المالك</label>
+            <input id="owner_name" type="text" required />
+          </div>
+          <div class="field">
+            <label for="owner_email">البريد الإلكتروني</label>
+            <input id="owner_email" type="email" required />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="owner_phone">هاتف المالك</label>
+            <input id="owner_phone" type="tel" required />
+          </div>
+          <div class="field">
+            <label for="national_id">الرقم القومي</label>
+            <input id="national_id" type="text" maxlength="14" required />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="store_name">اسم المتجر</label>
+            <input id="store_name" type="text" required />
+          </div>
+          <div class="field">
+            <label for="store_category">فئة المتجر</label>
+            <input id="store_category" type="text" required />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="description">وصف النشاط</label>
+          <textarea id="description" rows="3" required></textarea>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="country">الدولة</label>
+            <input id="country" type="text" required />
+          </div>
+          <div class="field">
+            <label for="city">المدينة</label>
+            <input id="city" type="text" required />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="address">العنوان</label>
+            <input id="address" type="text" required />
+          </div>
+          <div class="field">
+            <label for="store_phone">هاتف المتجر</label>
+            <input id="store_phone" type="tel" required />
+          </div>
+        </div>
+
+        <button type="submit" class="btn-primary">إرسال طلب الشراكة</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
+  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
+  <script src="../assets/js/session.js?v=20260309-3"></script>
+  <script src="../assets/js/partnership.js?v=20260309-3"></script>
+</body>
+</html>
+
+
