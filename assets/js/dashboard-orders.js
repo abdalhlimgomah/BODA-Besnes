@@ -206,14 +206,13 @@
     if (!user) return;
 
     window.PartnerSession.markActiveNav("orders");
-    document.getElementById("currentUserLabel").textContent = user.email || "";
+    window.DashboardTopbarMenu?.mount?.({
+      user,
+      notify,
+    });
 
     bindFilters();
     document.getElementById("ordersList")?.addEventListener("change", handleOrderStatusChange);
-    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-      await window.PartnerSession.signOut();
-      window.PartnerSession.goTo(window.APP_ROUTES.login);
-    });
 
     await loadOrders();
   }

@@ -309,7 +309,10 @@
 
     state.currentUser = user;
     window.PartnerSession.markActiveNav("products");
-    document.getElementById("currentUserLabel").textContent = user.email || "";
+    window.DashboardTopbarMenu?.mount?.({
+      user,
+      notify,
+    });
 
     document.getElementById("productForm")?.addEventListener("submit", handleProductSubmit);
     document.getElementById("productsGrid")?.addEventListener("click", handleProductsGridClick);
@@ -320,11 +323,6 @@
     document.getElementById("primaryImagePreview")?.addEventListener("error", () => {
       updatePrimaryImagePreview("");
     });
-    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-      await window.PartnerSession.signOut();
-      window.PartnerSession.goTo(window.APP_ROUTES.login);
-    });
-
     updatePrimaryImagePreview(document.getElementById("productImage1")?.value || "");
     await loadProducts();
   }

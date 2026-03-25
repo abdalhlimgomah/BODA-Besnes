@@ -42,10 +42,12 @@
   const LOCAL_KEYS = Object.freeze({
     currentUser: "currentUser",
     profile: "local_profile_v1",
+    profileAvatars: "local_profile_avatars_v1",
     partner: "local_partner_profile_v1",
     products: "local_products_v1",
     orders: "local_orders_v1",
   });
+  const PROFILE_AVATAR_COLUMNS = ["avatar_url", "avatar", "profile_image", "photo_url", "image", "img"];
 
   const state = {
     client: null,
@@ -130,6 +132,39 @@
     }
   }
 
+  function readAvatarStore() {
+    const raw = readStorageJSON(LOCAL_KEYS.profileAvatars, {});
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+    return raw;
+  }
+
+  function readLocalAvatarForEmail(email) {
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) return "";
+    const store = readAvatarStore();
+    return sanitizeImageSource(store[cleanEmail] || "");
+  }
+
+  function writeLocalAvatarForEmail(email, avatarUrl) {
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) return false;
+
+    const store = readAvatarStore();
+    const cleanAvatar = sanitizeImageSource(avatarUrl);
+    if (cleanAvatar) {
+      store[cleanEmail] = cleanAvatar;
+    } else {
+      delete store[cleanEmail];
+    }
+    return writeStorageJSON(LOCAL_KEYS.profileAvatars, store);
+  }
+
+  function pickProfileAvatar(record = null, email = "") {
+    const fromRecord = sanitizeImageSource(pickFirst(record || {}, PROFILE_AVATAR_COLUMNS, ""));
+    if (fromRecord) return fromRecord;
+    return readLocalAvatarForEmail(email);
+  }
+
   function readLocalSessionUser() {
     const user = readStorageJSON(LOCAL_KEYS.currentUser, null);
     if (!user || typeof user !== "object") return null;
@@ -141,6 +176,7 @@
       email,
       name: safeText(user.name || user.full_name || ""),
       phone: safeText(user.phone || ""),
+      avatar_url: sanitizeImageSource(user.avatar_url || user.avatarUrl || "") || readLocalAvatarForEmail(email),
       authSource: "local",
     };
   }
@@ -156,13 +192,23 @@
     const current = readLocalSessionUser();
     if (!current) return;
 
+    const email = normalizeEmail(profile.email || current.email || "");
+    const avatarUrl =
+      sanitizeImageSource(profile.avatar_url || profile.avatar || profile.profile_image || profile.photo_url || "") ||
+      readLocalAvatarForEmail(email);
+
     const next = {
       ...current,
+      email: email || current.email,
       name: safeText(profile.full_name || profile.name || current.name),
       phone: safeText(profile.phone || current.phone),
+      avatar_url: avatarUrl,
     };
 
     writeStorageJSON(LOCAL_KEYS.currentUser, next);
+    if (next.email && avatarUrl) {
+      writeLocalAvatarForEmail(next.email, avatarUrl);
+    }
     localStorage.setItem("userFullName", next.name);
     localStorage.setItem("userPhone", next.phone);
   }
@@ -1251,28 +1297,55 @@
     const owner = await resolveOwnerContext();
     if (isLocalOwner(owner)) {
       const local = readStorageJSON(LOCAL_KEYS.profile, null);
-      if (local && normalizeEmail(local.email || "") === normalizeEmail(owner.email)) return local;
+      if (local && normalizeEmail(local.email || "") === normalizeEmail(owner.email)) {
+        const localAvatar = pickProfileAvatar(local, owner.email);
+        if (localAvatar) {
+          writeLocalAvatarForEmail(owner.email, localAvatar);
+        }
+        return cleanPayload({
+          ...local,
+          avatar_url: localAvatar,
+        }, { keepEmpty: true });
+      }
+      const fallbackAvatar = readLocalAvatarForEmail(owner.email);
       return cleanPayload({
         id: owner.id,
         email: owner.email,
         full_name: owner.name,
         phone: owner.phone,
+        avatar_url: fallbackAvatar,
       }, { keepEmpty: true });
     }
     if (!owner.id) return null;
 
     const profile = await getProfileByUserId(owner.id);
-    if (profile) return profile;
+    if (profile) {
+      const profileEmail = normalizeEmail(profile.email || owner.email || "");
+      const avatarUrl = pickProfileAvatar(profile, profileEmail);
+      if (profileEmail && avatarUrl) {
+        writeLocalAvatarForEmail(profileEmail, avatarUrl);
+      }
+      return cleanPayload({
+        ...profile,
+        avatar_url: avatarUrl,
+      }, { keepEmpty: true });
+    }
 
     if (!owner.email) return null;
     const userRow = await getUserDirectoryByEmail(owner.email);
     if (!userRow) return null;
+
+    const fallbackAvatar = pickProfileAvatar(userRow, owner.email);
+    if (fallbackAvatar) {
+      writeLocalAvatarForEmail(owner.email, fallbackAvatar);
+    }
 
     return cleanPayload({
       id: owner.id,
       email: normalizeEmail(pickFirst(userRow, LEGACY_USER_EMAIL_SCAN_COLUMNS, owner.email)),
       full_name: pickFirstText(userRow, LEGACY_USER_NAME_COLUMNS, owner.name),
       phone: pickFirstText(userRow, LEGACY_USER_PHONE_COLUMNS, owner.phone),
+      avatar_url: fallbackAvatar,
     }, { keepEmpty: true });
   }
 
@@ -1351,18 +1424,28 @@
 
   async function upsertProfile(payload = {}, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
+
+    const incomingAvatar = sanitizeImageSource(
+      payload.avatar_url || payload.avatar || payload.profile_image || payload.photo_url || ""
+    );
+
     if (isLocalOwner(owner)) {
       const fullName = safeText(payload.full_name || payload.name || owner.name || "");
       const phone = safeText(payload.phone || owner.phone || "");
       const email = normalizeEmail(payload.email || owner.email || "");
+      const fallbackAvatar = incomingAvatar || readLocalAvatarForEmail(email);
       const localProfile = cleanPayload({
         id: owner.id || "local-admen788",
         email,
         full_name: fullName,
         phone,
+        avatar_url: fallbackAvatar || undefined,
         updated_at: new Date().toISOString(),
       }, { keepEmpty: true });
       writeStorageJSON(LOCAL_KEYS.profile, localProfile);
+      if (email && fallbackAvatar) {
+        writeLocalAvatarForEmail(email, fallbackAvatar);
+      }
       syncLocalSessionUser(localProfile);
       return localProfile;
     }
@@ -1377,6 +1460,7 @@
       email,
       full_name: fullName,
       phone,
+      avatar_url: incomingAvatar || undefined,
       updated_at: new Date().toISOString(),
     }, { keepEmpty: true });
 
@@ -1408,9 +1492,27 @@
       console.warn("users sync skipped", directoryError);
     }
 
-    if (profileRow) return profileRow;
+    if (email && incomingAvatar) {
+      writeLocalAvatarForEmail(email, incomingAvatar);
+    }
+
+    if (profileRow) {
+      const avatarUrl = pickProfileAvatar(profileRow, email) || incomingAvatar;
+      if (email && avatarUrl) {
+        writeLocalAvatarForEmail(email, avatarUrl);
+      }
+      return cleanPayload({
+        ...profileRow,
+        avatar_url: avatarUrl,
+      }, { keepEmpty: true });
+    }
     if (profileError && !isMissingTableError(profileError) && !isTypeMismatchError(profileError)) {
       throw profileError;
+    }
+
+    const fallbackAvatar = incomingAvatar || readLocalAvatarForEmail(email);
+    if (email && fallbackAvatar) {
+      writeLocalAvatarForEmail(email, fallbackAvatar);
     }
 
     return cleanPayload({
@@ -1418,68 +1520,26 @@
       email,
       full_name: fullName,
       phone,
+      avatar_url: fallbackAvatar || undefined,
       updated_at: new Date().toISOString(),
     }, { keepEmpty: true });
   }
 
   async function updateMyProfile(payload = {}) {
     const owner = await resolveOwnerContext();
-    if (isLocalOwner(owner)) {
-      return upsertProfile({
-        full_name: payload.full_name || payload.name || owner.name,
-        phone: payload.phone || owner.phone,
-        email: owner.email,
-      }, owner);
+    const avatarUrl = sanitizeImageSource(
+      payload.avatar_url || payload.avatar || payload.profile_image || payload.photo_url || ""
+    );
+    if (owner.email && avatarUrl) {
+      writeLocalAvatarForEmail(owner.email, avatarUrl);
     }
-    if (!owner.id) throw new Error("Authenticated user is required.");
 
-    const updatePayload = cleanPayload({
+    return upsertProfile({
       full_name: payload.full_name || payload.name,
       phone: payload.phone,
-      updated_at: new Date().toISOString(),
-    }, { keepEmpty: true });
-
-    if (!Object.keys(updatePayload).length) {
-      return getProfileByUserId(owner.id);
-    }
-
-    const client = getClient();
-    const candidates = [
-      updatePayload,
-      cleanPayload({ ...updatePayload, updated_at: undefined }, { keepEmpty: true }),
-    ];
-
-    let lastError = null;
-    for (const candidate of candidates) {
-      const { data, error } = await client
-        .from("profiles")
-        .update(candidate)
-        .eq("id", owner.id)
-        .select("*")
-        .maybeSingle();
-
-      if (!error) {
-        try {
-          await syncUserDirectoryRecord({
-            email: owner.email,
-            full_name: payload.full_name || payload.name || owner.name,
-            phone: payload.phone || owner.phone,
-          }, owner);
-        } catch (directoryError) {
-          console.warn("users sync skipped", directoryError);
-        }
-
-        if (data) return data;
-        break;
-      }
-      lastError = error;
-      if (isMissingTableError(error)) {
-        return upsertProfile(payload, owner);
-      }
-    }
-
-    if (lastError) throw lastError;
-    return upsertProfile(payload, owner);
+      email: owner.email,
+      avatar_url: avatarUrl,
+    }, owner);
   }
 
   function normalizeProduct(row, sourceTable) {

@@ -6,15 +6,33 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>الحساب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-1" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-2" />
 </head>
 <body>
   <header class="topbar">
     <div class="topbar-inner">
       <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
-        <span id="currentUserLabel" class="pill">-</span>
-        <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+        <div id="userMenuRoot" class="user-menu">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة الحساب" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+            <span id="userAvatarInitial" class="avatar-fallback">?</span>
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة الحساب" loading="lazy" />
+          </button>
+          <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
+            <div class="user-menu-header">
+              <div class="avatar-preview">
+                <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الحساب الكبيرة" loading="lazy" />
+              </div>
+              <p id="userMenuEmail" class="user-menu-email">-</p>
+            </div>
+            <div class="user-menu-actions">
+              <button id="userAvatarUploadBtn" type="button" class="btn-secondary">تغيير الصورة</button>
+              <input id="userAvatarInput" type="file" class="hidden" accept="image/*" capture="environment" />
+              <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+            </div>
+          </div>
+        </div>
       </div>
       <nav class="tabs-nav">
         <a data-nav="products" href="products.html">المنتجات</a>
@@ -82,9 +100,10 @@
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260309-3"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260325-3"></script>
-  <script src="../assets/js/session.js?v=20260325-1"></script>
-  <script src="../assets/js/dashboard-account.js?v=20260325-1"></script>
+  <script src="../assets/js/supabase-service.js?v=20260325-4"></script>
+  <script src="../assets/js/session.js?v=20260325-2"></script>
+  <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-1"></script>
+  <script src="../assets/js/dashboard-account.js?v=20260325-2"></script>
 </body>
 </html>
 

@@ -7,6 +7,7 @@
     userEmail: "userEmail",
     userFullName: "userFullName",
     userPhone: "userPhone",
+    userAvatar: "userAvatar",
     authSource: "authSource",
   });
   const LOCAL_PARTNER_PROFILE_KEY = "local_partner_profile_v1";
@@ -48,6 +49,21 @@
     return String(value || "").trim();
   }
 
+  function sanitizeImageSource(value) {
+    const text = safeText(value);
+    if (!text) return "";
+
+    if (window.BudaSecurity?.sanitizeUrl) {
+      return window.BudaSecurity.sanitizeUrl(text, { allowDataImages: true });
+    }
+
+    if (/^https?:\/\//i.test(text)) return text;
+    if (/^blob:/i.test(text)) return text;
+    const dataMatch = text.match(/^data:image\/[a-z0-9.+-]+(?:;[a-z0-9=:+-]+)*,(.+)$/i);
+    if (dataMatch && String(dataMatch[1] || "").length >= 16) return text;
+    return "";
+  }
+
   function findDirectLocalAccountByEmail(email) {
     const cleanEmail = normalizeEmail(email);
     if (!cleanEmail) return null;
@@ -85,6 +101,7 @@
       email,
       name: safeText(row.name || account.name || "Local Test User"),
       phone: safeText(row.phone || ""),
+      avatarUrl: sanitizeImageSource(row.avatarUrl || row.avatar_url || ""),
       authSource: "local",
       loginTime: safeText(row.updatedAt || row.createdAt || new Date().toISOString()),
     };
@@ -98,6 +115,7 @@
         email: normalizeEmail(parsed.email || ""),
         name: safeText(parsed.name || parsed.full_name || ""),
         phone: safeText(parsed.phone || ""),
+        avatarUrl: sanitizeImageSource(parsed.avatarUrl || parsed.avatar_url || localStorage.getItem(SESSION_KEYS.userAvatar)),
         authSource: safeText(parsed.authSource || parsed.auth_source || ""),
         loginTime: safeText(parsed.loginTime || new Date().toISOString()),
       };
@@ -119,6 +137,7 @@
       email,
       name: safeText(localStorage.getItem(SESSION_KEYS.userFullName) || ""),
       phone: safeText(localStorage.getItem(SESSION_KEYS.userPhone) || ""),
+      avatarUrl: sanitizeImageSource(localStorage.getItem(SESSION_KEYS.userAvatar) || ""),
       authSource: safeText(localStorage.getItem(SESSION_KEYS.authSource) || ""),
       loginTime: new Date().toISOString(),
     };
@@ -134,6 +153,7 @@
       email: normalizeEmail(user?.email || ""),
       name: safeText(user?.name || user?.full_name || ""),
       phone: safeText(user?.phone || ""),
+      avatarUrl: sanitizeImageSource(user?.avatarUrl || user?.avatar_url || user?.avatar || user?.profile_image || user?.photo_url || ""),
       authSource: safeText(user?.authSource || user?.auth_source || ""),
       loginTime: safeText(user?.loginTime || new Date().toISOString()),
     };
@@ -145,6 +165,7 @@
     localStorage.setItem(SESSION_KEYS.userEmail, normalized.email);
     localStorage.setItem(SESSION_KEYS.userFullName, normalized.name);
     localStorage.setItem(SESSION_KEYS.userPhone, normalized.phone);
+    localStorage.setItem(SESSION_KEYS.userAvatar, normalized.avatarUrl);
     localStorage.setItem(SESSION_KEYS.authSource, normalized.authSource);
     localStorage.setItem("userId", normalized.id);
 
@@ -234,6 +255,9 @@
         email: normalizeEmail(authUser.email || profile?.email || ""),
         name: safeText(profile?.full_name || metadata.full_name || ""),
         phone: safeText(profile?.phone || metadata.phone || ""),
+        avatarUrl: sanitizeImageSource(
+          profile?.avatar_url || profile?.avatar || profile?.profile_image || metadata.avatar_url || metadata.avatar || metadata.picture || ""
+        ),
       };
 
       if (!normalized.email) {

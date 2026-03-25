@@ -84,15 +84,13 @@
     if (!user) return;
 
     window.PartnerSession.markActiveNav("account");
-    document.getElementById("currentUserLabel").textContent = user.email || "";
+    window.DashboardTopbarMenu?.mount?.({
+      user,
+      notify,
+    });
     document.getElementById("accountName").value = safeText(user.name);
     document.getElementById("accountEmail").value = safeText(user.email);
     document.getElementById("accountPhone").value = safeText(user.phone);
-
-    document.getElementById("logoutBtn")?.addEventListener("click", async () => {
-      await window.PartnerSession.signOut();
-      window.PartnerSession.goTo(window.APP_ROUTES.login);
-    });
 
     document.getElementById("accountForm")?.addEventListener("submit", async (event) => {
       event.preventDefault();
