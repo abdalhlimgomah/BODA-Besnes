@@ -508,11 +508,20 @@
     const base = payload && typeof payload === "object" ? payload : {};
     const protect = new Set([
       "email",
+      "owner_email",
+      "seller_email",
+      "user_email",
       "name",
       "product_name",
       "title",
       "price",
       "amount",
+      "discount_percent",
+      "discount",
+      "price_after_discount",
+      "final_price",
+      "discounted_price",
+      "sale_price",
       "description",
       "desc",
       "category",
@@ -523,6 +532,25 @@
       "image_url",
       "image_link1",
       "img1",
+      "image2",
+      "image3",
+      "image4",
+      "image5",
+      "img2",
+      "img3",
+      "img4",
+      "img5",
+      "image_link2",
+      "image_link3",
+      "image_link4",
+      "image_link5",
+      "images",
+      "extra_links",
+      "phone",
+      "owner_phone",
+      "phone_number",
+      "mobile",
+      "whatsapp",
       "updated_at",
     ]);
 
@@ -1631,6 +1659,10 @@
   function buildProductInsertPayloads(table, product, owner) {
     const images = mapInputImages(product.images);
     const firstImage = images[0] || "";
+    const image2 = images[1] || "";
+    const image3 = images[2] || "";
+    const image4 = images[3] || "";
+    const image5 = images[4] || "";
     const imagesText = images.join(", ");
     const extraLinks = images.slice(1).join(", ");
     const discountPercent = toNumber(product.discountPercent);
@@ -1691,6 +1723,8 @@
       discount: discountPercent,
       price_after_discount: finalPrice,
       final_price: finalPrice,
+      discounted_price: finalPrice,
+      sale_price: finalPrice,
       quantity,
       stock: quantity,
       description: product.description,
@@ -1701,26 +1735,38 @@
       image_url: firstImage,
       image_link1: firstImage,
       img1: firstImage,
+      image2,
+      image3,
+      image4,
+      image5,
+      img2: image2,
+      img3: image3,
+      img4: image4,
+      img5: image5,
+      image_link2: image2,
+      image_link3: image3,
+      image_link4: image4,
+      image_link5: image5,
       extra_links: extraLinks,
+      images,
       phone: ownerPhone,
       owner_phone: ownerPhone,
+      phone_number: ownerPhone,
+      mobile: ownerPhone,
+      whatsapp: ownerPhone,
       created_at: createdAt,
       updated_at: now,
     });
 
-    const richWithImagesText = imagesText
-      ? cleanPayload({ ...rich, images: imagesText })
-      : null;
-    const richWithImagesArray = images.length
-      ? cleanPayload({ ...rich, images })
-      : null;
+    const richWithImagesText = imagesText ? cleanPayload({ ...rich, images: imagesText }) : null;
 
-    const payloads = table === "my_products"
-      ? [minimalAlternate, minimalPrimary, rich]
-      : [minimalPrimary, minimalAlternate, rich];
-
+    // Try the fullest payload first so mirror/review tables receive all
+    // important product fields whenever their schema supports them.
+    const payloads = [];
+    payloads.push(rich);
     if (richWithImagesText) payloads.push(richWithImagesText);
-    if (richWithImagesArray) payloads.push(richWithImagesArray);
+    payloads.push(minimalPrimary);
+    payloads.push(minimalAlternate);
 
     const unique = [];
     const seen = new Set();
@@ -1921,6 +1967,200 @@
     return { done: false, error: lastError };
   }
 
+  function buildProductOwnerMatchCandidates(owner = {}) {
+    const out = [];
+
+    if (owner.id) {
+      PRODUCT_OWNER_ID_COLUMNS.forEach((ownerColumn) => {
+        out.push({ ownerColumn, ownerValue: owner.id });
+      });
+    }
+
+    if (owner.email) {
+      PRODUCT_OWNER_EMAIL_COLUMNS.forEach((ownerColumn) => {
+        out.push({ ownerColumn, ownerValue: owner.email });
+      });
+    }
+
+    const seen = new Set();
+    return out.filter((item) => {
+      const key = `${safeText(item.ownerColumn)}|${safeText(item.ownerValue)}`;
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function rowHasKnownProductOwnerColumn(row) {
+    if (!row || typeof row !== "object") return false;
+    const known = new Set([...PRODUCT_OWNER_ID_COLUMNS, ...PRODUCT_OWNER_EMAIL_COLUMNS]);
+    return Object.keys(row).some((key) => known.has(String(key || "").toLowerCase()));
+  }
+
+  async function findOwnedProductRowById(table, productId, owner = {}) {
+    const client = getClient();
+    const cleanProductId = safeText(productId);
+    if (!cleanProductId) return { row: null, error: null };
+
+    const ownerMatches = buildProductOwnerMatchCandidates(owner);
+    let lastError = null;
+
+    for (const match of ownerMatches) {
+      for (const idColumn of PRODUCT_ID_COLUMNS) {
+        const { data, error } = await client
+          .from(table)
+          .select("*")
+          .eq(idColumn, cleanProductId)
+          .eq(match.ownerColumn, match.ownerValue)
+          .limit(1);
+
+        if (error) {
+          lastError = error;
+          if (isMissingColumnError(error) || isTypeMismatchError(error)) continue;
+          continue;
+        }
+
+        if (Array.isArray(data) && data.length) {
+          return { row: data[0], error: null };
+        }
+      }
+    }
+
+    for (const idColumn of PRODUCT_ID_COLUMNS) {
+      const { data, error } = await client
+        .from(table)
+        .select("*")
+        .eq(idColumn, cleanProductId)
+        .limit(5);
+
+      if (error) {
+        lastError = error;
+        if (isMissingColumnError(error) || isTypeMismatchError(error)) continue;
+        continue;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      const matched = rows.find((row) => {
+        if (rowBelongsToOwner(row, owner)) return true;
+        return !rowHasKnownProductOwnerColumn(row);
+      });
+      if (matched) return { row: matched, error: null };
+    }
+
+    return { row: null, error: lastError };
+  }
+
+  function buildProductDeleteFingerprint(row = {}) {
+    const normalized = normalizeProduct(row, "");
+    return {
+      name: safeText(normalized.name || pickFirst(row, ["name", "product_name", "title"], "")),
+      price: toNumber(normalized.price || pickFirst(row, ["price", "amount", "current_price"], 0)),
+      firstImage: sanitizeImageSource(
+        (Array.isArray(normalized.images) ? normalized.images[0] : "") ||
+          pickFirst(row, ["image", "img1", "image1", "image_url", "image_link1", "img", "thumbnail"], "")
+      ),
+    };
+  }
+
+  async function runDeleteQueryByFingerprint({ table, ownerMatch, clauses }) {
+    const client = getClient();
+    let query = client.from(table).delete();
+
+    if (ownerMatch?.ownerColumn && ownerMatch?.ownerValue) {
+      query = query.eq(ownerMatch.ownerColumn, ownerMatch.ownerValue);
+    }
+
+    (Array.isArray(clauses) ? clauses : []).forEach((clause) => {
+      if (!clause?.column) return;
+      query = query.eq(clause.column, clause.value);
+    });
+
+    const { data, error } = await query.select("*").limit(50);
+    if (error) {
+      return { done: false, error };
+    }
+
+    return { done: Array.isArray(data) && data.length > 0, error: null };
+  }
+
+  async function tryDeleteProductByFingerprint({ table, owner, fingerprint }) {
+    if (!table || !fingerprint) return { done: false, error: null };
+
+    const ownerMatches = buildProductOwnerMatchCandidates(owner);
+    if (!ownerMatches.length) return { done: false, error: null };
+
+    const name = safeText(fingerprint.name);
+    const price = toNumber(fingerprint.price);
+    const firstImage = sanitizeImageSource(fingerprint.firstImage || "");
+    if (!name && !firstImage) return { done: false, error: null };
+
+    const nameColumns = ["name", "product_name", "title"];
+    const priceColumns = ["price", "amount", "current_price", "final_price", "price_after_discount"];
+    const imageColumns = ["image", "image_url", "image_link1", "img1"];
+
+    let lastError = null;
+
+    for (const ownerMatch of ownerMatches) {
+      if (name) {
+        for (const nameColumn of nameColumns) {
+          const direct = await runDeleteQueryByFingerprint({
+            table,
+            ownerMatch,
+            clauses: [{ column: nameColumn, value: name }],
+          });
+          if (direct.done) return direct;
+          if (direct.error) {
+            lastError = direct.error;
+            if (isMissingColumnError(direct.error) || isTypeMismatchError(direct.error)) {
+              continue;
+            }
+          }
+        }
+      }
+
+      if (name && price > 0) {
+        for (const nameColumn of nameColumns) {
+          for (const priceColumn of priceColumns) {
+            const withPrice = await runDeleteQueryByFingerprint({
+              table,
+              ownerMatch,
+              clauses: [
+                { column: nameColumn, value: name },
+                { column: priceColumn, value: price },
+              ],
+            });
+            if (withPrice.done) return withPrice;
+            if (withPrice.error) {
+              lastError = withPrice.error;
+              if (isMissingColumnError(withPrice.error) || isTypeMismatchError(withPrice.error)) {
+                continue;
+              }
+            }
+          }
+        }
+      }
+
+      if (firstImage) {
+        for (const imageColumn of imageColumns) {
+          const byImage = await runDeleteQueryByFingerprint({
+            table,
+            ownerMatch,
+            clauses: [{ column: imageColumn, value: firstImage }],
+          });
+          if (byImage.done) return byImage;
+          if (byImage.error) {
+            lastError = byImage.error;
+            if (isMissingColumnError(byImage.error) || isTypeMismatchError(byImage.error)) {
+              continue;
+            }
+          }
+        }
+      }
+    }
+
+    return { done: false, error: lastError };
+  }
+
   async function updateProduct(productId, product, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
     if (isLocalOwner(owner)) {
@@ -1980,19 +2220,56 @@
     if (!owner.id && !owner.email) throw new Error("Authenticated owner is required.");
 
     const tables = await resolveAvailableProductTables();
+    const reviewTable = await resolveReviewProductTable(tables[0] || "");
+    const allTables = Array.from(new Set([...tables, reviewTable].filter(Boolean)));
+    const cleanProductId = safeText(productId);
+    if (!cleanProductId) throw new Error("productId is required.");
+
+    let sourceRow = null;
     let lastError = null;
 
-    for (const table of tables) {
+    for (const table of allTables) {
+      const probe = await findOwnedProductRowById(table, cleanProductId, owner);
+      if (probe.row) {
+        sourceRow = probe.row;
+        break;
+      }
+      lastError = probe.error || lastError;
+    }
+
+    const fingerprint = sourceRow ? buildProductDeleteFingerprint(sourceRow) : null;
+    let deletedAny = false;
+
+    for (const table of allTables) {
       const result = await tryMutateProduct({
         action: "delete",
         table,
-        productId,
+        productId: cleanProductId,
         payload: {},
         owner,
       });
 
-      if (result.done) return true;
+      if (result.done) {
+        deletedAny = true;
+        continue;
+      }
       lastError = result.error || lastError;
+
+      if (!fingerprint) continue;
+      const mirrored = await tryDeleteProductByFingerprint({
+        table,
+        owner,
+        fingerprint,
+      });
+      if (mirrored.done) {
+        deletedAny = true;
+        continue;
+      }
+      lastError = mirrored.error || lastError;
+    }
+
+    if (deletedAny) {
+      return true;
     }
 
     throw lastError || new Error("Product not found or not owned by this user.");

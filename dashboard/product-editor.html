@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>إدارة المنتج - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-4" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-inner">
+      <strong class="brand-title">Buda Partner Portal</strong>
+      <div class="topbar-actions">
+        <div id="userMenuRoot" class="user-menu">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة الحساب" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+            <span id="userAvatarInitial" class="avatar-fallback">?</span>
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة الحساب" loading="lazy" />
+          </button>
+          <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
+            <div class="user-menu-header">
+              <div class="avatar-preview">
+                <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الحساب الكبيرة" loading="lazy" />
+              </div>
+              <p id="userMenuEmail" class="user-menu-email">-</p>
+            </div>
+            <div class="user-menu-actions">
+              <button id="userAvatarUploadBtn" type="button" class="btn-secondary">تغيير الصورة</button>
+              <input id="userAvatarInput" type="file" class="hidden" accept="image/*" capture="environment" />
+              <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabs-nav">
+        <a data-nav="product-editor" href="product-editor.html">إدارة المنتج</a>
+        <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="sales" href="sales.html">المبيعات</a>
+        <a data-nav="orders" href="orders.html">الطلبات</a>
+        <a data-nav="account" href="account.html">الحساب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="page-wrap stack product-editor-page">
+    <section class="section-card editor-hero">
+      <div class="editor-hero-grid">
+        <div>
+          <h2 id="editorTitle">إضافة منتج جديد</h2>
+          <p id="editorSubtitle" class="muted">اكتب كل تفاصيل المنتج واربط حتى 5 صور بجودة واضحة.</p>
+        </div>
+        <div class="editor-hero-actions">
+          <a class="btn-secondary" href="products.html">العودة للمنتجات</a>
+        </div>
+      </div>
+    </section>
+
+    <p id="productsStatus" class="status-note hidden" aria-live="polite"></p>
+
+    <section class="section-card">
+      <form id="productForm" class="portal-form">
+        <div class="field-grid">
+          <div class="field">
+            <label for="productName">اسم المنتج</label>
+            <input id="productName" type="text" required />
+          </div>
+          <div class="field">
+            <label for="productCategory">التصنيف</label>
+            <input id="productCategory" type="text" required />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="productPrice">السعر</label>
+            <input id="productPrice" type="number" min="0" step="0.01" required />
+          </div>
+          <div class="field">
+            <label for="productDiscount">نسبة الخصم %</label>
+            <input id="productDiscount" type="number" min="0" max="100" value="0" />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="productQuantity">الكمية</label>
+            <input id="productQuantity" type="number" min="0" value="1" required />
+          </div>
+          <div class="field">
+            <label for="productPhone">رقم هاتف للتواصل</label>
+            <input id="productPhone" type="tel" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="productDescription">الوصف</label>
+          <textarea id="productDescription" rows="4" required></textarea>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="productImage1">رابط الصورة 1 (الرئيسية)</label>
+            <input id="productImage1" type="url" placeholder="https://example.com/1.jpg" />
+          </div>
+          <div class="field">
+            <label for="productImage2">رابط الصورة 2</label>
+            <input id="productImage2" type="url" placeholder="https://example.com/2.jpg" />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="productImage3">رابط الصورة 3</label>
+            <input id="productImage3" type="url" placeholder="https://example.com/3.jpg" />
+          </div>
+          <div class="field">
+            <label for="productImage4">رابط الصورة 4</label>
+            <input id="productImage4" type="url" placeholder="https://example.com/4.jpg" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="productImage5">رابط الصورة 5</label>
+          <input id="productImage5" type="url" placeholder="https://example.com/5.jpg" />
+        </div>
+
+        <section class="editor-preview-grid">
+          <article id="primaryImagePreviewBox" class="editor-preview-main hidden" aria-live="polite">
+            <small class="muted">معاينة الصورة الرئيسية</small>
+            <div class="product-media">
+              <img id="primaryImagePreview" alt="معاينة الصورة الرئيسية للمنتج" loading="lazy" />
+            </div>
+          </article>
+          <article>
+            <small class="muted">معرض الصور الإضافية</small>
+            <div id="extraImagePreviewGrid" class="editor-preview-thumbs"></div>
+          </article>
+        </section>
+
+        <div class="inline-actions editor-actions">
+          <button id="submitProductBtn" type="submit" class="btn-primary">إضافة المنتج</button>
+          <a id="cancelEditLink" class="btn-secondary hidden" href="products.html">إلغاء التعديل</a>
+        </div>
+      </form>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260325-4"></script>
+  <script src="../assets/js/security-utils.js?v=20260324-4"></script>
+  <script src="../assets/js/supabase-service.js?v=20260325-5"></script>
+  <script src="../assets/js/session.js?v=20260325-2"></script>
+  <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
+  <script src="../assets/js/dashboard-product-editor.js?v=20260325-2"></script>
+</body>
+</html>

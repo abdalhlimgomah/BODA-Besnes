@@ -22,7 +22,9 @@
     signup: "auth/signup.html",
     verify: "auth/verify.html",
     partnership: "partnership/form.html",
+    dashboardProductEditor: "dashboard/product-editor.html",
     dashboardProducts: "dashboard/products.html",
+    dashboardSales: "dashboard/sales.html",
     dashboardOrders: "dashboard/orders.html",
     dashboardAccount: "dashboard/account.html",
   });

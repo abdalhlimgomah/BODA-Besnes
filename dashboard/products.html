@@ -1,12 +1,12 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-  <title>إدارة المنتجات - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-2" />
+  <title>المنتجات - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-4" />
 </head>
 <body>
   <header class="topbar">
@@ -35,127 +35,42 @@
         </div>
       </div>
       <nav class="tabs-nav">
+        <a data-nav="product-editor" href="product-editor.html">إدارة المنتج</a>
         <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
         <a data-nav="account" href="account.html">الحساب</a>
       </nav>
     </div>
   </header>
 
-  <main class="page-wrap stack">
-    <section class="section-card">
-      <div class="section-head">
-        <h2>إضافة / تعديل منتج</h2>
-        <span class="pill">عدد المنتجات: <strong id="productsCount">0</strong></span>
+  <main class="page-wrap stack products-catalog-page">
+    <section class="section-card catalog-hero">
+      <div class="catalog-hero-grid">
+        <div>
+          <h2>كتالوج منتجاتك</h2>
+          <p class="muted">استعرض المنتجات بشكل أنيق، وعدل أي منتج بضغطة واحدة.</p>
+        </div>
+        <div class="catalog-hero-actions">
+          <span class="pill">إجمالي المنتجات: <strong id="productsCount">0</strong></span>
+          <a class="btn-primary add-product-btn" href="product-editor.html">إضافة منتج جديد</a>
+        </div>
       </div>
-      <p class="muted">يتم الحفظ مباشرة في قاعدة البيانات مع دعم جدولي <code>products</code> و <code>my_products</code>.</p>
     </section>
 
     <p id="productsStatus" class="status-note hidden" aria-live="polite"></p>
 
     <section class="section-card">
-      <form id="productForm" class="portal-form">
-        <div class="field-grid">
-          <div class="field">
-            <label for="productName">اسم المنتج</label>
-            <input id="productName" type="text" required />
-          </div>
-          <div class="field">
-            <label for="productCategory">التصنيف</label>
-            <input id="productCategory" type="text" required />
-          </div>
-        </div>
-
-        <div class="field-grid">
-          <div class="field">
-            <label for="productPrice">السعر</label>
-            <input id="productPrice" type="number" min="0" step="0.01" required />
-          </div>
-          <div class="field">
-            <label for="productDiscount">نسبة الخصم %</label>
-            <input id="productDiscount" type="number" min="0" max="100" value="0" />
-          </div>
-        </div>
-
-        <div class="field-grid">
-          <div class="field">
-            <label for="productQuantity">الكمية</label>
-            <input id="productQuantity" type="number" min="0" value="1" required />
-          </div>
-          <div class="field">
-            <label for="productPhone">رقم هاتف للتواصل</label>
-            <input id="productPhone" type="tel" />
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="productDescription">الوصف</label>
-          <textarea id="productDescription" rows="3" required></textarea>
-        </div>
-
-        <div class="field-grid">
-          <div class="field">
-            <label for="productImage1">رابط الصورة 1 (الصورة الرئيسية)</label>
-            <input id="productImage1" type="url" placeholder="https://example.com/1.jpg" />
-          </div>
-          <div class="field">
-            <label for="productImage2">رابط الصورة 2</label>
-            <input id="productImage2" type="url" placeholder="https://example.com/2.jpg" />
-          </div>
-        </div>
-
-        <div class="field-grid">
-          <div class="field">
-            <label for="productImage3">رابط الصورة 3</label>
-            <input id="productImage3" type="url" placeholder="https://example.com/3.jpg" />
-          </div>
-          <div class="field">
-            <label for="productImage4">رابط الصورة 4</label>
-            <input id="productImage4" type="url" placeholder="https://example.com/4.jpg" />
-          </div>
-        </div>
-
-        <div class="field">
-          <label for="productImage5">رابط الصورة 5</label>
-          <input id="productImage5" type="url" placeholder="https://example.com/5.jpg" />
-        </div>
-
-        <div id="primaryImagePreviewBox" class="product-preview hidden" aria-live="polite">
-          <small class="muted">معاينة الصورة الرئيسية</small>
-          <div class="product-media">
-            <img id="primaryImagePreview" alt="معاينة الصورة الرئيسية للمنتج" loading="lazy" />
-          </div>
-        </div>
-
-        <div class="inline-actions">
-          <button type="submit" class="btn-primary">إضافة المنتج</button>
-          <button id="cancelEditBtn" type="button" class="btn-secondary hidden">إلغاء التعديل</button>
-        </div>
-      </form>
-    </section>
-
-    <section class="section-card">
-      <div class="section-head">
-        <h3>منتجاتي</h3>
-      </div>
-      <div id="productsGrid" class="products-grid"></div>
+      <div id="productsGrid" class="products-catalog-list"></div>
     </section>
   </main>
 
   <script src="../js/supabase.js"></script>
-  <script src="../assets/js/config.js?v=20260309-3"></script>
+  <script src="../assets/js/config.js?v=20260325-4"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260325-4"></script>
+  <script src="../assets/js/supabase-service.js?v=20260325-5"></script>
   <script src="../assets/js/session.js?v=20260325-2"></script>
-  <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-1"></script>
-  <script src="../assets/js/dashboard-products.js?v=20260325-2"></script>
+  <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
+  <script src="../assets/js/dashboard-products.js?v=20260325-5"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-

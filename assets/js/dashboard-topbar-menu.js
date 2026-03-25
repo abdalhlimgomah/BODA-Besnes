@@ -101,6 +101,64 @@
     return optimizeAvatarDataUrl(raw);
   }
 
+  function askLogoutConfirmation() {
+    return new Promise((resolve) => {
+      if (!document.body) {
+        resolve(false);
+        return;
+      }
+
+      const overlay = document.createElement("div");
+      overlay.className = "logout-confirm-overlay";
+      overlay.innerHTML = `
+        <div class="logout-confirm-card" role="dialog" aria-modal="true" aria-labelledby="logoutConfirmTitle">
+          <h3 id="logoutConfirmTitle">تأكيد تسجيل الخروج</h3>
+          <p>هل أنت متأكد أنك تريد تسجيل الخروج الآن؟</p>
+          <div class="logout-confirm-actions">
+            <button type="button" class="btn-secondary" data-action="cancel">إلغاء</button>
+            <button type="button" class="btn-danger" data-action="confirm">تسجيل الخروج</button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(overlay);
+      requestAnimationFrame(() => {
+        overlay.classList.add("is-open");
+      });
+
+      const cancelBtn = overlay.querySelector('[data-action="cancel"]');
+      const confirmBtn = overlay.querySelector('[data-action="confirm"]');
+      let completed = false;
+
+      function finish(result) {
+        if (completed) return;
+        completed = true;
+        overlay.classList.remove("is-open");
+        document.removeEventListener("keydown", handleKeydown);
+        setTimeout(() => overlay.remove(), 180);
+        resolve(Boolean(result));
+      }
+
+      function handleKeydown(event) {
+        if (event.key === "Escape") {
+          finish(false);
+          return;
+        }
+        if (event.key === "Enter" && document.activeElement === confirmBtn) {
+          finish(true);
+        }
+      }
+
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay) finish(false);
+      });
+      cancelBtn?.addEventListener("click", () => finish(false));
+      confirmBtn?.addEventListener("click", () => finish(true));
+      document.addEventListener("keydown", handleKeydown);
+      cancelBtn?.focus();
+    });
+  }
+
   function createUserMenuController(options = {}) {
     const root = document.getElementById("userMenuRoot");
     if (!root) return null;
@@ -121,6 +179,7 @@
     const notify = typeof options.notify === "function" ? options.notify : () => {};
     let user = options.user || window.PartnerSession?.getCurrentUser?.() || null;
     let busy = false;
+    let signingOut = false;
 
     triggerImage?.addEventListener("error", () => {
       triggerImage.removeAttribute("src");
@@ -219,6 +278,12 @@
     });
 
     logoutBtn.addEventListener("click", async () => {
+      if (signingOut) return;
+      const confirmed = await askLogoutConfirmation();
+      if (!confirmed) return;
+
+      signingOut = true;
+      logoutBtn.disabled = true;
       closeMenu();
       await window.PartnerSession.signOut();
       window.PartnerSession.goTo(window.APP_ROUTES.login);
