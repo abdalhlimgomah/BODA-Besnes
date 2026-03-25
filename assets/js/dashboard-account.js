@@ -31,6 +31,15 @@
     button.textContent = isLoading ? loadingText : button.dataset.defaultText;
   }
 
+  function formatPartnerStatus(value) {
+    const key = safeText(value).toLowerCase();
+    if (!key) return "قيد المراجعة";
+    if (key.includes("pending") || key.includes("مراج")) return "قيد المراجعة";
+    if (key.includes("approved") || key.includes("قبول")) return "مقبول";
+    if (key.includes("rejected") || key.includes("رفض")) return "مرفوض";
+    return safeText(value);
+  }
+
   async function fillPartnerSummary() {
     const email = window.PartnerSession.getCurrentEmail();
     const holder = document.getElementById("partnerSummary");
@@ -52,7 +61,7 @@
           </div>
           <div class="account-item">
             <small class="muted">حالة الطلب</small>
-            <strong>${escapeHtml(row.status || "pending")}</strong>
+            <strong>${escapeHtml(formatPartnerStatus(row.status || "pending"))}</strong>
           </div>
           <div class="account-item">
             <small class="muted">هاتف المتجر</small>
@@ -120,4 +129,3 @@
 
   document.addEventListener("DOMContentLoaded", initAccountPage);
 })();
-

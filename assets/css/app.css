@@ -1,16 +1,16 @@
 :root {
-  --bg: #eef2f7;
+  --bg: #f2f7f5;
   --surface: #ffffff;
-  --surface-soft: #f7f9fc;
-  --text: #17233a;
-  --muted: #5f6b82;
-  --primary: #0f766e;
-  --primary-strong: #0b5f5a;
+  --surface-soft: #f5faf8;
+  --text: #183327;
+  --muted: #5b6f67;
+  --primary: #0e7c66;
+  --primary-strong: #0b6553;
   --danger: #d14343;
-  --warning: #d18f24;
+  --warning: #ca861e;
   --success: #1b9e5a;
-  --border: #d8e0ec;
-  --shadow: 0 14px 34px rgba(23, 35, 58, 0.09);
+  --border: #d4e5dc;
+  --shadow: 0 16px 36px rgba(24, 51, 39, 0.1);
 }
 
 *,
@@ -31,9 +31,11 @@ body {
   color: var(--text);
   min-height: 100vh;
   background:
-    radial-gradient(circle at 20% 15%, #c9f0e8 0, transparent 38%),
-    radial-gradient(circle at 85% 10%, #d4def7 0, transparent 33%),
+    radial-gradient(circle at 15% 12%, rgba(88, 187, 159, 0.32) 0, transparent 38%),
+    radial-gradient(circle at 86% 8%, rgba(250, 208, 132, 0.28) 0, transparent 34%),
+    radial-gradient(circle at 82% 74%, rgba(146, 191, 255, 0.2) 0, transparent 30%),
     var(--bg);
+  background-attachment: fixed;
 }
 
 a {
@@ -97,21 +99,23 @@ button:disabled {
 }
 
 .btn-primary {
-  background: var(--primary);
+  background: linear-gradient(135deg, var(--primary) 0%, #0a8f73 100%);
   color: #fff;
+  box-shadow: 0 10px 20px rgba(14, 124, 102, 0.25);
 }
 
 .btn-primary:hover {
-  background: var(--primary-strong);
+  background: linear-gradient(135deg, var(--primary-strong) 0%, #0a7a63 100%);
+  transform: translateY(-1px);
 }
 
 .btn-secondary {
-  background: #e8edf6;
-  color: #243249;
+  background: #e6f2ed;
+  color: #214b3c;
 }
 
 .btn-secondary:hover {
-  background: #dae3f1;
+  background: #d9ebe5;
 }
 
 .btn-danger {
@@ -322,9 +326,9 @@ select:focus {
   top: 0;
   z-index: 50;
   backdrop-filter: blur(9px);
-  background: rgba(255, 255, 255, 0.9);
-  border-bottom: 1px solid #d8e0ec;
-  box-shadow: 0 8px 24px rgba(20, 38, 64, 0.08);
+  background: rgba(250, 255, 253, 0.9);
+  border-bottom: 1px solid #d6e7de;
+  box-shadow: 0 10px 26px rgba(20, 67, 52, 0.11);
 }
 
 .topbar-inner {
@@ -360,9 +364,9 @@ select:focus {
 }
 
 .topbar-actions .pill {
-  background: #e9f1fd;
-  color: #1f3e68;
-  border: 1px solid #d4e3f8;
+  background: #e2f4ee;
+  color: #175645;
+  border: 1px solid #c4e5d9;
 }
 
 .tabs-nav {
@@ -379,16 +383,16 @@ select:focus {
   min-width: 118px;
   padding: 10px 16px;
   border-radius: 12px;
-  color: #2c405c;
+  color: #2a5446;
   font-weight: 700;
-  border: 1px solid #d7e1ef;
-  background: #f2f6fc;
+  border: 1px solid #d4e5dc;
+  background: #f3faf7;
   transition: 0.2s ease;
 }
 
 .tabs-nav a:hover {
-  background: #e6eef9;
-  border-color: #c7d6ea;
+  background: #e9f5f0;
+  border-color: #bcd9cd;
 }
 
 .tabs-nav a.active {
@@ -400,7 +404,7 @@ select:focus {
 .section-card {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: var(--shadow);
   padding: 18px;
 }
@@ -509,8 +513,8 @@ select:focus {
 }
 
 .stat-tile {
-  background: #f0f5ff;
-  border: 1px solid #dae5f8;
+  background: #eff8f4;
+  border: 1px solid #d3e9df;
   border-radius: 14px;
   padding: 12px;
 }
@@ -534,9 +538,9 @@ select:focus {
 .chip {
   padding: 8px 12px;
   border-radius: 999px;
-  background: #ebf1fc;
-  color: #2f4462;
-  border: 1px solid #d5e2f4;
+  background: #e9f6f1;
+  color: #2a5a4a;
+  border: 1px solid #cae6dc;
 }
 
 .chip.active {
@@ -631,8 +635,8 @@ select:focus {
 }
 
 .summary-box {
-  background: #f6f9ff;
-  border: 1px solid #dfe7f4;
+  background: #f4faf7;
+  border: 1px solid #d8ebe2;
   border-radius: 12px;
   padding: 10px;
 }
@@ -644,10 +648,141 @@ select:focus {
 }
 
 .account-item {
-  background: #f7f9ff;
-  border: 1px solid #dde6f7;
+  background: #f4faf7;
+  border: 1px solid #d8ebe2;
   border-radius: 12px;
   padding: 10px;
+}
+
+.account-page .section-card {
+  animation: card-rise 0.45s ease both;
+}
+
+.account-page .section-card:nth-of-type(2) {
+  animation-delay: 0.06s;
+}
+
+.account-page .section-card:nth-of-type(3) {
+  animation-delay: 0.12s;
+}
+
+.account-hero {
+  position: relative;
+  overflow: hidden;
+  border-color: #c7e5d8;
+  background: linear-gradient(145deg, #ffffff 0%, #eef8f3 100%);
+}
+
+.account-hero::before {
+  content: "";
+  position: absolute;
+  inset: -130px -80px auto auto;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(14, 124, 102, 0.22) 0, rgba(14, 124, 102, 0) 70%);
+  pointer-events: none;
+}
+
+.account-hero-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1.5fr 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+.account-hero-copy h2 {
+  margin: 0 0 8px;
+  font-size: clamp(1.4rem, 2.1vw, 1.9rem);
+}
+
+.account-hero-copy p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.8;
+}
+
+.account-hero-pills {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.account-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  color: #19624f;
+  background: #e7f6ef;
+  border: 1px solid #c8e7dc;
+}
+
+.account-hero-notice {
+  border-radius: 14px;
+  border: 1px solid #d5e9df;
+  background: #f8fcfa;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.account-hero-notice small {
+  color: #3d6b5f;
+  font-weight: 700;
+}
+
+.account-hero-notice strong {
+  line-height: 1.7;
+}
+
+.account-hero-notice p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.account-panel {
+  border-color: #d2e8de;
+}
+
+.account-panel-kicker {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: #e9f7f1;
+  border: 1px solid #cae8dc;
+  color: #1f6b59;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 800;
+}
+
+#partnerSummary .account-item small {
+  display: inline-block;
+  margin-bottom: 5px;
+}
+
+#partnerSummary .account-item strong {
+  font-size: 1.02rem;
+  color: #214338;
+}
+
+@keyframes card-rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 @media (max-width: 900px) {
@@ -678,6 +813,10 @@ select:focus {
   .tabs-nav a {
     flex: 1 1 120px;
     min-width: 120px;
+  }
+
+  .account-hero-grid {
+    grid-template-columns: 1fr;
   }
 }
 

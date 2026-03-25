@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>الحساب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-1" />
 </head>
 <body>
   <header class="topbar">
@@ -24,17 +24,33 @@
     </div>
   </header>
 
-  <main class="page-wrap stack">
-    <section class="section-card">
-      <div class="section-head">
-        <h2>بيانات الحساب</h2>
+  <main class="page-wrap stack account-page">
+    <section class="section-card account-hero">
+      <div class="account-hero-grid">
+        <div class="account-hero-copy">
+          <h2>لوحة الحساب</h2>
+          <p>عدّل بياناتك بسرعة، وتابع حالة ملف الشراكة من نفس الصفحة.</p>
+          <div class="account-hero-pills">
+            <span class="account-pill">إدارة أسهل</span>
+            <span class="account-pill">تحديث مباشر</span>
+            <span class="account-pill">واجهة أوضح</span>
+          </div>
+        </div>
+        <div class="account-hero-notice">
+          <small>معلومة</small>
+          <strong>البريد الإلكتروني ثابت لأنه مربوط بتسجيل الدخول.</strong>
+          <p>يمكنك تغيير الاسم والهاتف في أي وقت.</p>
+        </div>
       </div>
-      <p class="muted">يمكنك تعديل بياناتك الأساسية. البريد الإلكتروني مرتبط بالحساب الحالي.</p>
     </section>
 
     <p id="accountStatus" class="status-note hidden" aria-live="polite"></p>
 
-    <section class="section-card">
+    <section class="section-card account-panel">
+      <div class="section-head">
+        <h3>بيانات الحساب الأساسية</h3>
+        <span class="account-panel-kicker">Profile</span>
+      </div>
       <form id="accountForm" class="portal-form">
         <div class="field-grid">
           <div class="field">
@@ -54,9 +70,10 @@
       </form>
     </section>
 
-    <section class="section-card">
+    <section class="section-card account-panel">
       <div class="section-head">
         <h3>ملخص بيانات الشراكة</h3>
+        <span class="account-panel-kicker">Partner</span>
       </div>
       <div id="partnerSummary"></div>
     </section>
@@ -67,7 +84,7 @@
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
   <script src="../assets/js/supabase-service.js?v=20260325-2"></script>
   <script src="../assets/js/session.js?v=20260324-2"></script>
-  <script src="../assets/js/dashboard-account.js?v=20260309-3"></script>
+  <script src="../assets/js/dashboard-account.js?v=20260325-1"></script>
 </body>
 </html>
 
