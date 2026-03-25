@@ -314,6 +314,14 @@
     if (isLocalAuthUser(user)) {
       if (isDirectLocalEmail(user.email)) return user;
       if (hasLocalPartnerProfile(user.email)) return user;
+
+      try {
+        const cloudPartner = await window.PartnerAPI.hasPartnerProfile(user);
+        if (cloudPartner.exists) return user;
+      } catch (error) {
+        console.warn("cloud partner check for local user failed", error);
+      }
+
       goTo(window.APP_ROUTES.partnership);
       return null;
     }

@@ -29,6 +29,9 @@
   const ORDER_ITEM_QTY_COLUMNS = ["quantity", "quantity_ordered", "qty", "count"];
   const ORDER_ITEM_PRICE_COLUMNS = ["price", "item_price", "price_each", "amount", "unit_price"];
   const ORDER_STATUS_COLUMNS = ["status", "order_status"];
+  const PARTNER_OWNER_ID_COLUMNS = ["owner_id", "user_id", "seller_id", "partner_id", "merchant_id", "id_user"];
+  const PARTNER_OWNER_EMAIL_COLUMNS = ["owner_email", "email", "user_email", "seller_email", "partner_email", "merchant_email", "mail"];
+  const PARTNER_DATE_COLUMNS = ["updated_at", "created_at", "submitted_at", "requested_at", "createdAt", "updatedAt"];
   const LEGACY_USER_TABLE_CANDIDATES = ["users"];
   const LEGACY_USER_EMAIL_COLUMNS = ["email", "user_email", "owner_email", "mail"];
   const LEGACY_USER_EMAIL_SCAN_COLUMNS = ["email", "user_email", "owner_email", "mail"];
@@ -1521,6 +1524,43 @@
     return rowEmails.includes(ownerEmail);
   }
 
+  function rowBelongsToPartnerOwner(row, owner) {
+    if (!row || !owner) return false;
+
+    const ownerId = safeText(owner.id);
+    if (ownerId) {
+      const rowOwnerIds = PARTNER_OWNER_ID_COLUMNS.map((key) => safeText(row[key])).filter(Boolean);
+      if (rowOwnerIds.includes(ownerId)) return true;
+    }
+
+    const ownerEmail = normalizeEmail(owner.email || "");
+    if (!ownerEmail) return false;
+    const rowEmails = PARTNER_OWNER_EMAIL_COLUMNS.map((key) => normalizeEmail(row[key])).filter(Boolean);
+    return rowEmails.includes(ownerEmail);
+  }
+
+  function pickLatestPartnerRow(rows = []) {
+    const list = Array.isArray(rows) ? rows.slice() : [];
+    if (!list.length) return null;
+
+    list.sort((a, b) => {
+      const dateA = Date.parse(pickFirst(a, PARTNER_DATE_COLUMNS, "")) || 0;
+      const dateB = Date.parse(pickFirst(b, PARTNER_DATE_COLUMNS, "")) || 0;
+      if (dateA !== dateB) return dateB - dateA;
+
+      const idA = safeText(pickFirst(a, ["id"], ""));
+      const idB = safeText(pickFirst(b, ["id"], ""));
+      const numA = Number(idA);
+      const numB = Number(idB);
+      if (Number.isFinite(numA) && Number.isFinite(numB) && numA !== numB) {
+        return numB - numA;
+      }
+      return idB.localeCompare(idA);
+    });
+
+    return list[0] || null;
+  }
+
   function normalizeOwnerIdForInsert(value = "") {
     const clean = safeText(value);
     if (!clean) return "";
@@ -1983,8 +2023,6 @@
       }
     }
 
-    if (isLocalOwner(owner)) return { exists: false, row: null };
-
     const client = getClient();
     const attempts = [];
 
@@ -1994,8 +2032,7 @@
           .from("partners_requests")
           .select("*")
           .eq("owner_id", owner.id)
-          .order("id", { ascending: false })
-          .limit(1)
+          .limit(50)
       );
     }
 
@@ -2005,31 +2042,64 @@
           .from("partners_requests")
           .select("*")
           .eq("owner_email", owner.email)
-          .order("id", { ascending: false })
-          .limit(1)
+          .limit(50)
       );
       attempts.push(() =>
         client
           .from("partners_requests")
           .select("*")
           .eq("email", owner.email)
-          .order("id", { ascending: false })
-          .limit(1)
+          .limit(50)
       );
     }
 
     let lastError = null;
+    const matchedRows = [];
     for (const run of attempts) {
       const { data, error } = await run();
       if (!error) {
-        const row = Array.isArray(data) && data.length ? data[0] : null;
-        return { exists: Boolean(row), row };
+        const rows = Array.isArray(data) ? data : [];
+        rows
+          .filter((row) => rowBelongsToPartnerOwner(row, owner))
+          .forEach((row) => matchedRows.push(row));
+        continue;
       }
       lastError = error;
-      if (isMissingColumnError(error)) continue;
+      if (isMissingColumnError(error) || isTypeMismatchError(error) || isAuthPermissionError(error)) continue;
+      if (isMissingTableError(error)) return { exists: false, row: null };
     }
 
-    if (lastError) throw lastError;
+    if (matchedRows.length) {
+      const row = pickLatestPartnerRow(matchedRows);
+      if (row) {
+        writeStorageJSON(LOCAL_KEYS.partner, row);
+        return { exists: true, row };
+      }
+    }
+
+    const fallback = await client.from("partners_requests").select("*").limit(1000);
+    if (!fallback.error) {
+      const rows = Array.isArray(fallback.data) ? fallback.data : [];
+      const filtered = rows.filter((row) => rowBelongsToPartnerOwner(row, owner));
+      const row = pickLatestPartnerRow(filtered);
+      if (row) {
+        writeStorageJSON(LOCAL_KEYS.partner, row);
+        return { exists: true, row };
+      }
+      return { exists: false, row: null };
+    }
+
+    if (isMissingTableError(fallback.error) || isAuthPermissionError(fallback.error)) {
+      return { exists: false, row: null };
+    }
+
+    if (lastError) {
+      console.warn("partner profile lookup failed", {
+        status: Number(lastError?.status || 0) || undefined,
+        code: safeText(lastError?.code || ""),
+        message: safeText(lastError?.message || ""),
+      });
+    }
     return { exists: false, row: null };
   }
 
