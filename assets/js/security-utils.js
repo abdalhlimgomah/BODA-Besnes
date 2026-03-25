@@ -3,7 +3,7 @@
 
   const HASH_PREFIX = "boda_v1";
   const HASH_SEPARATOR = "$";
-  const CLIENT_PEPPER = "BODA_CLIENT_PEPPER_2026";
+  const CLIENT_PEPPER = "Buda_CLIENT_PEPPER_2026";
 
   function normalizeEmail(email) {
     return String(email || "").trim().toLowerCase();
@@ -142,8 +142,17 @@
     if (allowDataImages) {
       // Accept only well-formed data:image URIs and reject malformed values
       // like "data:image/jpeg:1" which trigger ERR_INVALID_URL.
-      const dataMatch = text.match(/^data:image\/[a-z0-9.+-]+(?:;[a-z0-9=:+-]+)*,(.+)$/i);
-      if (dataMatch && String(dataMatch[1] || "").length >= 16) return text;
+      const dataMatch = text.match(/^(data:image\/[a-z0-9.+-]+(?:;[a-z0-9=:+-]+)*,)(.+)$/i);
+      if (dataMatch) {
+        const prefix = String(dataMatch[1] || "");
+        const body = String(dataMatch[2] || "").replace(/\s+/g, "");
+        if (body.length < 16) return "";
+
+        if (/;base64,/i.test(prefix) && !/^[a-z0-9+/=]+$/i.test(body)) {
+          return "";
+        }
+        return `${prefix}${body}`;
+      }
     }
     if (/^blob:/i.test(text)) return text;
     if (/^https?:\/\//i.test(text)) return text;
@@ -163,7 +172,7 @@
     }
   }
 
-  window.BODASecurity = Object.freeze({
+  window.BudaSecurity = Object.freeze({
     normalizeEmail,
     hashPassword,
     verifyPassword,

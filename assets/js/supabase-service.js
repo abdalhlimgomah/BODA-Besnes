@@ -1,17 +1,41 @@
-﻿(() => {
+(() => {
   "use strict";
 
-  const PRODUCT_TABLE_CANDIDATES = ["products", "my_products"];
+  const PRODUCT_TABLE_CANDIDATES = ["products", "my_products", "partner_products", "seller_products", "product"];
+  const PRODUCT_REVIEW_TABLE_CANDIDATES = [
+    "my_products",
+    "partner_products",
+    "seller_products",
+    "product_reviews",
+    "products_review",
+    "products_reviews",
+    "review_products",
+    "partner_products_review",
+    "seller_products_review",
+    "merchant_products_review",
+    "products_requests",
+    "merchant_products_requests",
+  ];
   const PRODUCT_ID_COLUMNS = ["id", "product_id"];
   const PRODUCT_OWNER_ID_COLUMNS = ["owner_id", "user_id", "seller_id"];
   const PRODUCT_OWNER_EMAIL_COLUMNS = ["owner_email", "seller_email", "email", "user_email"];
+  const ORDER_TABLE_CANDIDATES = ["orders", "partner_orders", "seller_orders", "merchant_orders", "shop_orders", "orders_requests", "order"];
+  const ORDER_ITEM_TABLE_CANDIDATES = ["order_items", "orders_items", "order_products", "orders_products", "order_details", "seller_order_items", "partner_order_items", "merchant_order_items", "order_item"];
+  const ORDER_ID_COLUMNS = ["order_id", "orderid", "id"];
+  const ORDER_OWNER_ID_COLUMNS = ["seller_id", "owner_id", "partner_id", "merchant_id", "vendor_id", "store_owner_id", "user_id"];
+  const ORDER_OWNER_EMAIL_COLUMNS = ["seller_email", "owner_email", "partner_email", "merchant_email", "vendor_email", "seller_mail", "owner_mail", "customer_email", "user_email", "email"];
+  const ORDER_ITEM_ORDER_ID_COLUMNS = ["order_id", "orderid", "parent_order_id", "id_order"];
+  const ORDER_ITEM_NAME_COLUMNS = ["product_name", "product_title", "name", "title", "item_name"];
+  const ORDER_ITEM_QTY_COLUMNS = ["quantity", "quantity_ordered", "qty", "count"];
+  const ORDER_ITEM_PRICE_COLUMNS = ["price", "item_price", "price_each", "amount", "unit_price"];
   const ORDER_STATUS_COLUMNS = ["status", "order_status"];
   const LEGACY_USER_TABLE_CANDIDATES = ["users"];
-  const LEGACY_USER_EMAIL_COLUMNS = ["email"];
+  const LEGACY_USER_EMAIL_COLUMNS = ["email", "user_email", "owner_email", "mail"];
   const LEGACY_USER_EMAIL_SCAN_COLUMNS = ["email", "user_email", "owner_email", "mail"];
   const LEGACY_USER_PASSWORD_COLUMNS = ["password_hash", "password", "pass", "user_password", "passwordHash", "hashed_password"];
   const LEGACY_USER_NAME_COLUMNS = ["full_name", "name", "username", "owner_name"];
   const LEGACY_USER_PHONE_COLUMNS = ["phone", "mobile", "owner_phone", "phone_number"];
+  const USER_TABLE_CANDIDATES = ["users"];
   const LOCAL_KEYS = Object.freeze({
     currentUser: "currentUser",
     profile: "local_profile_v1",
@@ -24,11 +48,16 @@
     client: null,
     availableProductTables: [],
     preferredInsertTable: "",
+    reviewProductTable: "",
+    availableOrderTables: [],
+    availableOrderItemTables: [],
   };
+  const IMAGE_COLUMN_HINTS = ["image", "img", "thumbnail", "images", "extra_links", "link"];
+  const ADAPTIVE_MUTATION_MAX_ATTEMPTS = 32;
 
   function normalizeEmail(value) {
-    return window.BODASecurity?.normalizeEmail
-      ? window.BODASecurity.normalizeEmail(value)
+    return window.BudaSecurity?.normalizeEmail
+      ? window.BudaSecurity.normalizeEmail(value)
       : String(value || "").trim().toLowerCase();
   }
 
@@ -40,8 +69,8 @@
     const text = safeText(value);
     if (!text) return "";
 
-    if (window.BODASecurity?.sanitizeUrl) {
-      return window.BODASecurity.sanitizeUrl(text, { allowDataImages: true });
+    if (window.BudaSecurity?.sanitizeUrl) {
+      return window.BudaSecurity.sanitizeUrl(text, { allowDataImages: true });
     }
 
     if (/^\s*javascript:/i.test(text)) return "";
@@ -192,8 +221,8 @@
     const stored = String(storedPassword || "");
     if (!plain || !stored) return false;
 
-    if (window.BODASecurity?.verifyPassword) {
-      return window.BODASecurity.verifyPassword(plain, stored, email);
+    if (window.BudaSecurity?.verifyPassword) {
+      return window.BudaSecurity.verifyPassword(plain, stored, email);
     }
 
     return plain === stored;
@@ -225,6 +254,412 @@
     return error.code === "PGRST202" || code === "42883" || msg.includes("function") && msg.includes("does not exist");
   }
 
+  function isAuthPermissionError(error) {
+    if (!error) return false;
+    const status = Number(error.status || 0);
+    const code = String(error.code || "").toLowerCase();
+    const msg = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+    return (
+      status === 401 ||
+      status === 403 ||
+      code === "42501" ||
+      msg.includes("unauthorized") ||
+      msg.includes("permission denied") ||
+      msg.includes("jwt")
+    );
+  }
+
+  function isInvalidAuthCredentialsError(error) {
+    if (!error) return false;
+    const code = String(error.code || "").toLowerCase();
+    const status = Number(error.status || 0);
+    const msg = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+    return (
+      code === "invalid_credentials" ||
+      code === "invalid_grant" ||
+      msg.includes("invalid login credentials") ||
+      (status === 400 && msg.includes("invalid"))
+    );
+  }
+
+  function isAuthUserAlreadyExistsError(error) {
+    if (!error) return false;
+    const code = String(error.code || "").toLowerCase();
+    const msg = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+    return (
+      code === "user_already_exists" ||
+      msg.includes("already") ||
+      msg.includes("registered") ||
+      (msg.includes("email") && msg.includes("exists"))
+    );
+  }
+
+  function isTypeMismatchError(error) {
+    if (!error) return false;
+    const code = String(error.code || "").toLowerCase();
+    const msg = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+    return (
+      code === "22p02" ||
+      code === "42804" ||
+      msg.includes("invalid input syntax for type") ||
+      (msg.includes("is of type") && msg.includes("but expression is of type"))
+    );
+  }
+
+  function isValueTooLongError(error) {
+    if (!error) return false;
+    const code = String(error.code || "").toLowerCase();
+    const msg = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+    return code === "22001" || msg.includes("value too long for type");
+  }
+
+  function getErrorText(error) {
+    return `${error?.message || ""} ${error?.details || ""}`.trim();
+  }
+
+  function extractMissingColumnName(error) {
+    const text = getErrorText(error);
+    if (!text) return "";
+
+    const patterns = [
+      /could not find the ['"]?([a-z0-9_]+)['"]? column/i,
+      /column ['"]?([a-z0-9_]+)['"]? of relation/i,
+      /column ['"]?([a-z0-9_]+)['"]? does not exist/i,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (match && match[1]) return safeText(match[1]);
+    }
+    return "";
+  }
+
+  function omitColumnCaseInsensitive(payload, columnName) {
+    const cleanColumn = safeText(columnName).toLowerCase();
+    if (!cleanColumn) return payload;
+
+    let removed = false;
+    const next = {};
+    Object.entries(payload || {}).forEach(([key, value]) => {
+      if (String(key).toLowerCase() === cleanColumn) {
+        removed = true;
+        return;
+      }
+      next[key] = value;
+    });
+
+    return removed ? next : payload;
+  }
+
+  function isIntegerLike(value) {
+    const text = safeText(value);
+    return /^-?\d+$/.test(text);
+  }
+
+  function isUuidLike(value) {
+    const text = safeText(value).toLowerCase();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(text);
+  }
+
+  function reducePayloadByTypeMismatch(payload, error) {
+    const base = payload && typeof payload === "object" ? payload : {};
+    const text = getErrorText(error).toLowerCase();
+    if (!text) return base;
+
+    const quotedColumn =
+      text.match(/column\s+['"]([a-z0-9_]+)['"]/i)?.[1] ||
+      text.match(/column\s+([a-z0-9_]+)\s+/i)?.[1] ||
+      "";
+
+    if (quotedColumn) {
+      return omitColumnCaseInsensitive(base, quotedColumn);
+    }
+
+    const expectsInteger =
+      text.includes("type bigint") ||
+      text.includes("type integer") ||
+      text.includes("type smallint");
+    const expectsUuid = text.includes("type uuid");
+    if (!expectsInteger && !expectsUuid) return base;
+
+    let removed = false;
+    const next = {};
+    Object.entries(base).forEach(([key, value]) => {
+      const cleanKey = String(key || "").toLowerCase();
+      const isIdKey = cleanKey === "id" || cleanKey.endsWith("_id");
+      if (!isIdKey) {
+        next[key] = value;
+        return;
+      }
+
+      const textValue = safeText(value);
+      if (!textValue) {
+        next[key] = value;
+        return;
+      }
+
+      if (expectsInteger && !isIntegerLike(textValue)) {
+        removed = true;
+        return;
+      }
+      if (expectsUuid && !isUuidLike(textValue)) {
+        removed = true;
+        return;
+      }
+
+      next[key] = value;
+    });
+
+    return removed ? next : base;
+  }
+
+  function scoreLargeValueColumn(columnName, value) {
+    const key = String(columnName || "").toLowerCase();
+    const rawValue = typeof value === "string" ? value : JSON.stringify(value || "");
+    const text = String(rawValue || "");
+    const isImageLike = IMAGE_COLUMN_HINTS.some((hint) => key.includes(hint));
+    const isDataImage = /^data:image\//i.test(text);
+    const isDescription = key.includes("description") || key === "desc";
+    let score = text.length;
+    if (isImageLike) score += 10000;
+    if (isDataImage) score += 9000;
+    if (isDescription) score += 400;
+    return score;
+  }
+
+  function reducePayloadByValueLength(payload, error) {
+    const base = payload && typeof payload === "object" ? payload : {};
+    const text = getErrorText(error).toLowerCase();
+    if (!text) return base;
+
+    const quotedColumn =
+      text.match(/column\s+['"]([a-z0-9_]+)['"]/i)?.[1] ||
+      text.match(/column\s+([a-z0-9_]+)\s+/i)?.[1] ||
+      "";
+    if (quotedColumn) {
+      return omitColumnCaseInsensitive(base, quotedColumn);
+    }
+
+    const candidates = Object.entries(base).filter(([, value]) => {
+      if (typeof value === "string") return value.length > 240;
+      if (Array.isArray(value)) return JSON.stringify(value).length > 240;
+      return false;
+    });
+    if (!candidates.length) return base;
+
+    const target = candidates
+      .map(([key, value]) => ({ key, score: scoreLargeValueColumn(key, value) }))
+      .sort((a, b) => b.score - a.score)[0];
+    if (!target?.key) return base;
+
+    return omitColumnCaseInsensitive(base, target.key);
+  }
+
+  function reducePayloadForGenericInsertError(payload) {
+    const base = payload && typeof payload === "object" ? payload : {};
+    const protect = new Set([
+      "email",
+      "name",
+      "product_name",
+      "title",
+      "price",
+      "amount",
+      "description",
+      "desc",
+      "category",
+      "store_category",
+      "quantity",
+      "stock",
+      "image",
+      "image_url",
+      "image_link1",
+      "img1",
+      "updated_at",
+    ]);
+
+    const candidates = Object.entries(base).filter(([key]) => !protect.has(String(key || "").toLowerCase()));
+    if (!candidates.length) return base;
+
+    const target = candidates
+      .map(([key, value]) => ({ key, score: scoreLargeValueColumn(key, value) }))
+      .sort((a, b) => b.score - a.score)[0];
+    if (!target?.key) return base;
+
+    return omitColumnCaseInsensitive(base, target.key);
+  }
+
+  function isConflictTargetError(error) {
+    const text = getErrorText(error).toLowerCase();
+    return (
+      text.includes("on conflict") ||
+      text.includes("no unique or exclusion constraint") ||
+      text.includes("no unique") ||
+      text.includes("constraint matching the on conflict")
+    );
+  }
+
+  function isUniqueViolationError(error) {
+    if (!error) return false;
+    const status = Number(error.status || 0);
+    const code = String(error.code || "").toLowerCase();
+    const text = getErrorText(error).toLowerCase();
+    return (
+      status === 409 ||
+      code === "23505" ||
+      text.includes("duplicate key value") ||
+      text.includes("unique constraint")
+    );
+  }
+
+  async function insertRowAdaptive(client, table, payload) {
+    let candidate = cleanPayload(payload, { keepEmpty: true });
+    let lastError = null;
+
+    for (let attempt = 0; attempt < ADAPTIVE_MUTATION_MAX_ATTEMPTS; attempt += 1) {
+      if (!Object.keys(candidate).length) break;
+
+      const { data, error } = await client
+        .from(table)
+        .insert([candidate])
+        .select("*");
+
+      if (!error) {
+        const row = Array.isArray(data) && data.length ? data[0] : data || candidate;
+        return { ok: true, row };
+      }
+
+      lastError = error;
+      if (isAuthPermissionError(error)) {
+        return { ok: false, error };
+      }
+
+      if (isMissingColumnError(error)) {
+        const badColumn = extractMissingColumnName(error);
+        const next = omitColumnCaseInsensitive(candidate, badColumn);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+
+      if (isTypeMismatchError(error)) {
+        const next = reducePayloadByTypeMismatch(candidate, error);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+
+      if (isValueTooLongError(error)) {
+        const next = reducePayloadByValueLength(candidate, error);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+
+      if (Number(error?.status || 0) === 400) {
+        const next = reducePayloadForGenericInsertError(candidate);
+        if (next !== candidate) {
+          candidate = next;
+          continue;
+        }
+      }
+
+      break;
+    }
+
+    if (lastError) {
+      console.warn("product insert adaptive failed", {
+        table,
+        status: Number(lastError?.status || 0) || undefined,
+        code: safeText(lastError?.code || ""),
+        message: safeText(lastError?.message || ""),
+        details: safeText(lastError?.details || ""),
+        hint: safeText(lastError?.hint || ""),
+        payloadKeys: Object.keys(candidate || {}),
+      });
+    }
+    return { ok: false, error: lastError || new Error("Insert failed.") };
+  }
+
+  async function upsertRowAdaptive(client, table, payload, conflictCandidates = []) {
+    const conflicts = Array.from(
+      new Set(
+        (Array.isArray(conflictCandidates) ? conflictCandidates : [])
+          .map((item) => safeText(item))
+          .filter(Boolean)
+      )
+    );
+
+    const orderedConflicts = conflicts.length
+      ? conflicts
+      : ["id", "email", "user_email", "owner_email"];
+
+    let lastError = null;
+
+    for (const onConflict of orderedConflicts) {
+      let candidate = cleanPayload(payload, { keepEmpty: true });
+
+      for (let attempt = 0; attempt < ADAPTIVE_MUTATION_MAX_ATTEMPTS; attempt += 1) {
+        if (!Object.keys(candidate).length) break;
+
+        const { data, error } = await client
+          .from(table)
+          .upsert(candidate, { onConflict })
+          .select("*");
+
+        if (!error) {
+          const row = Array.isArray(data) && data.length ? data[0] : data || candidate;
+          return { ok: true, row };
+        }
+
+        lastError = error;
+        if (isAuthPermissionError(error)) {
+          return { ok: false, error };
+        }
+
+        if (isMissingColumnError(error)) {
+          const badColumn = extractMissingColumnName(error);
+          const next = omitColumnCaseInsensitive(candidate, badColumn);
+          if (next === candidate) break;
+          candidate = next;
+          continue;
+        }
+
+        if (isTypeMismatchError(error)) {
+          const next = reducePayloadByTypeMismatch(candidate, error);
+          if (next === candidate) break;
+          candidate = next;
+          continue;
+        }
+
+        if (isValueTooLongError(error)) {
+          const next = reducePayloadByValueLength(candidate, error);
+          if (next === candidate) break;
+          candidate = next;
+          continue;
+        }
+
+        if (Number(error?.status || 0) === 400) {
+          const next = reducePayloadForGenericInsertError(candidate);
+          if (next !== candidate) {
+            candidate = next;
+            continue;
+          }
+        }
+
+        break;
+      }
+
+      if (!isConflictTargetError(lastError)) {
+        break;
+      }
+    }
+
+    const insertFallback = await insertRowAdaptive(client, table, payload);
+    if (insertFallback.ok) return insertFallback;
+
+    return { ok: false, error: insertFallback.error || lastError || new Error("Upsert failed.") };
+  }
+
   function splitImages(value) {
     const raw = safeText(value);
     if (!raw) return [];
@@ -241,7 +676,7 @@
 
   function collectImages(record) {
     const values = [
-      pickFirst(record, ["image", "img1", "image1", "image_url", "img", "thumbnail"], ""),
+      pickFirst(record, ["image", "img1", "image1", "image_url", "image_link1", "img", "thumbnail"], ""),
       record.img2,
       record.img3,
       record.img4,
@@ -250,6 +685,10 @@
       record.image3,
       record.image4,
       record.image5,
+      record.image_link2,
+      record.image_link3,
+      record.image_link4,
+      record.image_link5,
       record.extra_links,
       record.images,
     ];
@@ -271,6 +710,66 @@
       return images.map((item) => sanitizeImageSource(item)).filter(Boolean).slice(0, 5);
     }
     return splitImages(images).slice(0, 5);
+  }
+
+  async function resolveCloudOwnerForLocal(owner = {}) {
+    const email = normalizeEmail(owner.email || "");
+    if (!email) return { ...owner, id: safeText(owner.id || "") };
+
+    const currentId = safeText(owner.id || "");
+    const looksLocalId = currentId.startsWith("local-");
+    if (currentId && !looksLocalId) {
+      return { ...owner, id: currentId };
+    }
+
+    let resolvedId = "";
+    try {
+      const row = await getUserDirectoryByEmail(email);
+      resolvedId = safeText(
+        pickFirst(row, ["owner_id", "user_id", "seller_id", "id"], "")
+      );
+    } catch {
+      resolvedId = "";
+    }
+
+    return {
+      ...owner,
+      id: resolvedId || "",
+      email,
+    };
+  }
+
+  async function resolveProductOwnerForInsert(owner = {}) {
+    const email = normalizeEmail(owner.email || "");
+    const next = {
+      ...owner,
+      id: safeText(owner.id || ""),
+      email,
+      name: safeText(owner.name || ""),
+      phone: safeText(owner.phone || ""),
+    };
+    if (!email) return next;
+
+    try {
+      const row = await getUserDirectoryByEmail(email);
+      if (!row || typeof row !== "object") return next;
+
+      const rowId = safeText(pickFirst(row, ["owner_id", "user_id", "seller_id", "id"], ""));
+      if (rowId && (isIntegerLike(rowId) || isUuidLike(rowId))) {
+        next.id = rowId;
+      }
+
+      if (!next.name) {
+        next.name = pickFirstText(row, LEGACY_USER_NAME_COLUMNS, "");
+      }
+      if (!next.phone) {
+        next.phone = pickFirstText(row, LEGACY_USER_PHONE_COLUMNS, "");
+      }
+    } catch {
+      // Ignore lookup failure and continue with the base owner values.
+    }
+
+    return next;
   }
 
   function getClient() {
@@ -298,15 +797,78 @@
 
     for (const table of PRODUCT_TABLE_CANDIDATES) {
       const { error } = await client.from(table).select("*").limit(1);
-      if (!error) available.push(table);
+      if (!error) {
+        available.push(table);
+        break;
+      }
     }
 
     if (!available.length) {
-      throw new Error("Neither products nor my_products is available in Supabase.");
+      throw new Error("No compatible product table was found in Supabase.");
     }
 
     state.availableProductTables = available;
     state.preferredInsertTable = available.includes("products") ? "products" : available[0];
+    return available;
+  }
+
+  async function resolveReviewProductTable(primaryTable = "") {
+    const cleanPrimary = safeText(primaryTable);
+    if (state.reviewProductTable && state.reviewProductTable !== cleanPrimary) {
+      return state.reviewProductTable;
+    }
+
+    const client = getClient();
+    for (const table of PRODUCT_REVIEW_TABLE_CANDIDATES) {
+      if (table === cleanPrimary) continue;
+      const { error } = await client.from(table).select("*").limit(1);
+      if (!error) {
+        state.reviewProductTable = table;
+        return table;
+      }
+    }
+
+    state.reviewProductTable = "";
+    return "";
+  }
+
+  async function resolveAvailableOrderTables() {
+    if (state.availableOrderTables.length) return state.availableOrderTables;
+
+    const client = getClient();
+    const available = [];
+
+    for (const table of ORDER_TABLE_CANDIDATES) {
+      const { error } = await client.from(table).select("*").limit(1);
+      if (!error) {
+        available.push(table);
+        continue;
+      }
+      if (isMissingTableError(error)) continue;
+      if (isAuthPermissionError(error)) continue;
+    }
+
+    state.availableOrderTables = available;
+    return available;
+  }
+
+  async function resolveAvailableOrderItemTables() {
+    if (state.availableOrderItemTables.length) return state.availableOrderItemTables;
+
+    const client = getClient();
+    const available = [];
+
+    for (const table of ORDER_ITEM_TABLE_CANDIDATES) {
+      const { error } = await client.from(table).select("*").limit(1);
+      if (!error) {
+        available.push(table);
+        continue;
+      }
+      if (isMissingTableError(error)) continue;
+      if (isAuthPermissionError(error)) continue;
+    }
+
+    state.availableOrderItemTables = available;
     return available;
   }
 
@@ -365,14 +927,6 @@
     let session = data?.session || null;
     let user = data?.user || session?.user || null;
 
-    if (!session && normalizedEmail && plainPassword) {
-      const signIn = await client.auth.signInWithPassword({ email: normalizedEmail, password: plainPassword });
-      if (!signIn.error) {
-        session = signIn.data?.session || session;
-        user = signIn.data?.user || user;
-      }
-    }
-
     return { user: user || null, session: session || null };
   }
 
@@ -390,10 +944,85 @@
       password: plainPassword,
     });
 
-    if (error) throw error;
+    if (!error) {
+      return {
+        user: data?.user || null,
+        session: data?.session || null,
+      };
+    }
+
+    if (!isInvalidAuthCredentialsError(error)) throw error;
+
+    // محاولة تعافٍ لحسابات قديمة موجودة في جدول users فقط.
+    let legacyUser = null;
+    try {
+      legacyUser = await findLegacyUserForLogin({
+        email: normalizedEmail,
+        password: plainPassword,
+      });
+    } catch (legacyLookupError) {
+      console.warn("legacy login lookup failed", legacyLookupError);
+      throw error;
+    }
+
+    if (!legacyUser?.passwordVerified) throw error;
+
+    const legacyName = safeText(legacyUser.name || "");
+    const legacyPhone = safeText(legacyUser.phone || "");
+
+    const { error: signUpError } = await client.auth.signUp({
+      email: normalizedEmail,
+      password: plainPassword,
+      options: {
+        data: cleanPayload({
+          full_name: legacyName,
+          phone: legacyPhone,
+        }),
+      },
+    });
+
+    if (signUpError && !isAuthUserAlreadyExistsError(signUpError)) {
+      throw signUpError;
+    }
+
+    const { data: migratedData, error: migratedSignInError } = await client.auth.signInWithPassword({
+      email: normalizedEmail,
+      password: plainPassword,
+    });
+
+    if (migratedSignInError) throw migratedSignInError;
+
+    const migratedUser = migratedData?.user || null;
+    if (migratedUser) {
+      const profilePayload = cleanPayload({
+        email: normalizedEmail,
+        full_name: legacyName,
+        phone: legacyPhone,
+        password: plainPassword,
+      }, { keepEmpty: true });
+
+      try {
+        await upsertProfile(profilePayload, migratedUser);
+      } catch (profileError) {
+        console.warn("legacy profile upsert skipped", profileError);
+      }
+
+      try {
+        await syncUserDirectoryRecord(profilePayload, {
+          id: safeText(migratedUser.id),
+          email: normalizedEmail,
+          name: legacyName,
+          phone: legacyPhone,
+          authSource: "supabase",
+        });
+      } catch (directoryError) {
+        console.warn("legacy user directory sync skipped", directoryError);
+      }
+    }
+
     return {
-      user: data?.user || null,
-      session: data?.session || null,
+      user: migratedData?.user || null,
+      session: migratedData?.session || null,
     };
   }
 
@@ -512,9 +1141,20 @@
     }
 
     if (typeof ownerInput === "string") {
+      const ownerEmail = normalizeEmail(ownerInput);
+      const localUser = readLocalSessionUser();
+      if (localUser && normalizeEmail(localUser.email) === ownerEmail) {
+        return {
+          id: localUser.id,
+          email: localUser.email,
+          name: localUser.name,
+          phone: localUser.phone,
+          authSource: "local",
+        };
+      }
       return {
         id: "",
-        email: normalizeEmail(ownerInput),
+        email: ownerEmail,
         name: "",
         phone: "",
         authSource: "",
@@ -563,6 +1203,47 @@
     return data || null;
   }
 
+  async function getUserDirectoryByEmail(email = "") {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return null;
+
+    const client = getClient();
+    const lookupColumns = ["email", "user_email", "owner_email", "mail"];
+
+    for (const table of USER_TABLE_CANDIDATES) {
+      let tableMissing = false;
+
+      for (const column of lookupColumns) {
+        const { data, error } = await client.from(table).select("*").eq(column, normalizedEmail).limit(1);
+        if (!error) {
+          const row = Array.isArray(data) && data.length ? data[0] : null;
+          if (row) return row;
+          continue;
+        }
+
+        if (isMissingTableError(error)) {
+          tableMissing = true;
+          break;
+        }
+        if (isMissingColumnError(error)) continue;
+      }
+
+      if (tableMissing) continue;
+
+      const fallback = await client.from(table).select("*").limit(200);
+      if (fallback.error) continue;
+
+      const rows = Array.isArray(fallback.data) ? fallback.data : [];
+      const match = rows.find((row) => {
+        const emails = LEGACY_USER_EMAIL_SCAN_COLUMNS.map((key) => normalizeEmail(row?.[key])).filter(Boolean);
+        return emails.includes(normalizedEmail);
+      });
+      if (match) return match;
+    }
+
+    return null;
+  }
+
   async function getMyProfile() {
     const owner = await resolveOwnerContext();
     if (isLocalOwner(owner)) {
@@ -576,7 +1257,93 @@
       }, { keepEmpty: true });
     }
     if (!owner.id) return null;
-    return getProfileByUserId(owner.id);
+
+    const profile = await getProfileByUserId(owner.id);
+    if (profile) return profile;
+
+    if (!owner.email) return null;
+    const userRow = await getUserDirectoryByEmail(owner.email);
+    if (!userRow) return null;
+
+    return cleanPayload({
+      id: owner.id,
+      email: normalizeEmail(pickFirst(userRow, LEGACY_USER_EMAIL_SCAN_COLUMNS, owner.email)),
+      full_name: pickFirstText(userRow, LEGACY_USER_NAME_COLUMNS, owner.name),
+      phone: pickFirstText(userRow, LEGACY_USER_PHONE_COLUMNS, owner.phone),
+    }, { keepEmpty: true });
+  }
+
+  async function syncUserDirectoryRecord(payload = {}, ownerInput = null) {
+    const owner = await resolveOwnerContext(ownerInput);
+    const email = normalizeEmail(payload.email || owner.email || "");
+    if (!email) throw new Error("User email is required.");
+
+    const existing = await getUserDirectoryByEmail(email).catch(() => null);
+    if (existing) return existing;
+
+    const ownerId = safeText(owner.id || "");
+    const ownerIdNumeric = isIntegerLike(ownerId) ? ownerId : "";
+
+    const fullName = safeText(payload.full_name || payload.name || owner.name || "");
+    const phone = safeText(payload.phone || owner.phone || "");
+    const plainPassword = String(payload.password || payload.plain_password || "");
+    let passwordHash = safeText(payload.password_hash || "");
+
+    if (!passwordHash && plainPassword && window.BudaSecurity?.hashPassword) {
+      try {
+        passwordHash = await window.BudaSecurity.hashPassword(plainPassword, email);
+      } catch {
+        passwordHash = "";
+      }
+    }
+    if (!passwordHash && plainPassword) {
+      passwordHash = plainPassword;
+    }
+
+    const now = new Date().toISOString();
+    const basePayload = cleanPayload({
+      id: ownerIdNumeric || undefined,
+      user_id: ownerIdNumeric || undefined,
+      owner_id: ownerIdNumeric || undefined,
+      email,
+      user_email: email,
+      owner_email: email,
+      full_name: fullName,
+      name: fullName,
+      username: fullName,
+      phone,
+      owner_phone: phone,
+      phone_number: phone,
+      password_hash: passwordHash,
+      password: passwordHash,
+      updated_at: now,
+      created_at: now,
+    }, { keepEmpty: true });
+
+    const client = getClient();
+    let lastError = null;
+
+    for (const table of USER_TABLE_CANDIDATES) {
+      const result = await upsertRowAdaptive(
+        client,
+        table,
+        basePayload,
+        ["id", "email", "user_email", "owner_email", "mail"]
+      );
+
+      if (result.ok) return result.row || basePayload;
+      lastError = result.error || lastError;
+
+      if (isUniqueViolationError(result.error)) {
+        const matched = await getUserDirectoryByEmail(email).catch(() => null);
+        if (matched) return matched;
+      }
+
+      if (isMissingTableError(result.error)) continue;
+    }
+
+    if (lastError) throw lastError;
+    return null;
   }
 
   async function upsertProfile(payload = {}, ownerInput = null) {
@@ -596,44 +1363,60 @@
       syncLocalSessionUser(localProfile);
       return localProfile;
     }
-    if (!owner.id) throw new Error("Authenticated user is required to upsert profile.");
+    if (!owner.id && !owner.email) throw new Error("Authenticated user is required to upsert profile.");
 
     const fullName = safeText(payload.full_name || payload.name || owner.name || "");
     const phone = safeText(payload.phone || owner.phone || "");
     const email = normalizeEmail(payload.email || owner.email || "");
 
     const base = cleanPayload({
-      id: owner.id,
+      id: owner.id || undefined,
       email,
       full_name: fullName,
       phone,
       updated_at: new Date().toISOString(),
     }, { keepEmpty: true });
 
-    const candidates = [
-      base,
-      cleanPayload({ ...base, updated_at: undefined }, { keepEmpty: true }),
-      cleanPayload({ id: owner.id, email, full_name: fullName, updated_at: new Date().toISOString() }, { keepEmpty: true }),
-      cleanPayload({ id: owner.id, email, full_name: fullName }, { keepEmpty: true }),
-    ];
-
     const client = getClient();
-    let lastError = null;
+    let profileRow = null;
+    let profileError = null;
 
-    for (const candidate of candidates) {
-      const { data, error } = await client
-        .from("profiles")
-        .upsert(candidate, { onConflict: "id" })
-        .select("*")
-        .maybeSingle();
-
-      if (!error) {
-        return data || candidate;
+    if (owner.id) {
+      const profileResult = await upsertRowAdaptive(client, "profiles", base, ["id", "email"]);
+      if (profileResult.ok) {
+        profileRow = profileResult.row || base;
+      } else {
+        profileError = profileResult.error || null;
       }
-      lastError = error;
     }
 
-    throw lastError || new Error("Failed to upsert profile");
+    try {
+      await syncUserDirectoryRecord({
+        email,
+        full_name: fullName,
+        phone,
+        password_hash: payload.password_hash,
+        password: payload.password,
+      }, owner);
+    } catch (directoryError) {
+      if (!profileRow) {
+        throw directoryError;
+      }
+      console.warn("users sync skipped", directoryError);
+    }
+
+    if (profileRow) return profileRow;
+    if (profileError && !isMissingTableError(profileError) && !isTypeMismatchError(profileError)) {
+      throw profileError;
+    }
+
+    return cleanPayload({
+      id: owner.id || "",
+      email,
+      full_name: fullName,
+      phone,
+      updated_at: new Date().toISOString(),
+    }, { keepEmpty: true });
   }
 
   async function updateMyProfile(payload = {}) {
@@ -673,6 +1456,16 @@
         .maybeSingle();
 
       if (!error) {
+        try {
+          await syncUserDirectoryRecord({
+            email: owner.email,
+            full_name: payload.full_name || payload.name || owner.name,
+            phone: payload.phone || owner.phone,
+          }, owner);
+        } catch (directoryError) {
+          console.warn("users sync skipped", directoryError);
+        }
+
         if (data) return data;
         break;
       }
@@ -728,89 +1521,117 @@
     return rowEmails.includes(ownerEmail);
   }
 
+  function normalizeOwnerIdForInsert(value = "") {
+    const clean = safeText(value);
+    if (!clean) return "";
+    if (isUuidLike(clean) || isIntegerLike(clean)) return clean;
+    return "";
+  }
+
   function buildProductInsertPayloads(table, product, owner) {
     const images = mapInputImages(product.images);
     const firstImage = images[0] || "";
+    const imagesText = images.join(", ");
+    const extraLinks = images.slice(1).join(", ");
     const discountPercent = toNumber(product.discountPercent);
     const price = toNumber(product.price);
     const quantity = toNumber(product.quantity);
     const finalPrice = discountPercent > 0 ? price - (price * discountPercent) / 100 : price;
+    const ownerId = normalizeOwnerIdForInsert(owner.id);
+    const ownerEmail = normalizeEmail(owner.email || "");
+    const ownerPhone = safeText(product.phone || owner.phone || "");
+    const now = new Date().toISOString();
+    const createdAt = now;
 
-    if (table === "my_products") {
-      return [
-        cleanPayload({
-          owner_id: owner.id,
-          owner_email: owner.email,
-          email: owner.email,
-          product_name: product.name,
-          name: product.name,
-          price,
-          discount_percent: discountPercent,
-          description: product.description,
-          quantity,
-          category: product.category,
-          img1: images[0] || "",
-          img2: images[1] || "",
-          img3: images[2] || "",
-          img4: images[3] || "",
-          img5: images[4] || "",
-          phone: safeText(product.phone || owner.phone || ""),
-          updated_at: new Date().toISOString(),
-        }, { keepEmpty: true }),
-        cleanPayload({
-          owner_id: owner.id,
-          owner_email: owner.email,
-          email: owner.email,
-          name: product.name,
-          price,
-          description: product.description,
-          quantity,
-          category: product.category,
-          image: firstImage,
-          phone: safeText(product.phone || owner.phone || ""),
-          updated_at: new Date().toISOString(),
-        }, { keepEmpty: true }),
-      ];
-    }
+    const ownerFields = cleanPayload({
+      owner_id: ownerId || undefined,
+      seller_id: ownerId || undefined,
+      user_id: ownerId || undefined,
+      owner_email: ownerEmail,
+      seller_email: ownerEmail,
+      email: ownerEmail,
+      user_email: ownerEmail,
+    });
 
-    return [
-      cleanPayload({
-        owner_id: owner.id,
-        owner_email: owner.email,
-        seller_email: owner.email,
-        name: product.name,
-        product_name: product.name,
-        price,
-        price_after_discount: finalPrice,
-        discount_percent: discountPercent,
-        stock: quantity,
-        quantity,
-        description: product.description,
-        image: firstImage,
-        extra_links: images.slice(1).join(", "),
-        category: product.category,
-        phone: safeText(product.phone || owner.phone || ""),
-        updated_at: new Date().toISOString(),
-      }, { keepEmpty: true }),
-      cleanPayload({
-        owner_id: owner.id,
-        owner_email: owner.email,
-        seller_email: owner.email,
-        product_name: product.name,
-        price,
-        discount_percent: discountPercent,
-        description: product.description,
-        quantity,
-        category: product.category,
-        img1: images[0] || "",
-        img2: images[1] || "",
-        img3: images[2] || "",
-        img4: images[3] || "",
-        img5: images[4] || "",
-        phone: safeText(product.phone || owner.phone || ""),
-        updated_at: new Date().toISOString(),
-      }, { keepEmpty: true }),
-    ];
+    const minimalPrimary = cleanPayload({
+      ...ownerFields,
+      name: product.name,
+      price,
+      description: product.description,
+      category: product.category,
+      quantity,
+      image: firstImage,
+      phone: ownerPhone,
+      created_at: createdAt,
+      updated_at: now,
+    });
+
+    const minimalAlternate = cleanPayload({
+      ...ownerFields,
+      product_name: product.name,
+      title: product.name,
+      amount: price,
+      stock: quantity,
+      desc: product.description,
+      store_category: product.category,
+      image_link1: firstImage,
+      owner_phone: ownerPhone,
+      created_at: createdAt,
+      updated_at: now,
+    });
+
+    const rich = cleanPayload({
+      ...ownerFields,
+      name: product.name,
+      product_name: product.name,
+      title: product.name,
+      price,
+      amount: price,
+      discount_percent: discountPercent,
+      discount: discountPercent,
+      price_after_discount: finalPrice,
+      final_price: finalPrice,
+      quantity,
+      stock: quantity,
+      description: product.description,
+      desc: product.description,
+      category: product.category,
+      store_category: product.category,
+      image: firstImage,
+      image_url: firstImage,
+      image_link1: firstImage,
+      img1: firstImage,
+      extra_links: extraLinks,
+      phone: ownerPhone,
+      owner_phone: ownerPhone,
+      created_at: createdAt,
+      updated_at: now,
+    });
+
+    const richWithImagesText = imagesText
+      ? cleanPayload({ ...rich, images: imagesText })
+      : null;
+    const richWithImagesArray = images.length
+      ? cleanPayload({ ...rich, images })
+      : null;
+
+    const payloads = table === "my_products"
+      ? [minimalAlternate, minimalPrimary, rich]
+      : [minimalPrimary, minimalAlternate, rich];
+
+    if (richWithImagesText) payloads.push(richWithImagesText);
+    if (richWithImagesArray) payloads.push(richWithImagesArray);
+
+    const unique = [];
+    const seen = new Set();
+    payloads.forEach((payload) => {
+      const key = JSON.stringify(payload || {});
+      if (!key || seen.has(key)) return;
+      seen.add(key);
+      unique.push(payload);
+    });
+
+    return unique;
   }
 
   async function tryInsertProductToCloud(client, table, product, owner) {
@@ -820,17 +1641,37 @@
     for (const payload of payloads) {
       const candidates = [
         payload,
-        cleanPayload({ ...payload, owner_id: undefined }, { keepEmpty: true }),
+        cleanPayload({ ...payload, owner_id: undefined, seller_id: undefined, user_id: undefined }, { keepEmpty: true }),
       ];
 
       for (const candidate of candidates) {
-        const { error } = await client.from(table).insert([candidate]);
-        if (!error) return { ok: true };
-        lastError = error;
+        const result = await insertRowAdaptive(client, table, candidate);
+        if (result.ok) return { ok: true };
+        lastError = result.error || lastError;
       }
     }
 
     return { ok: false, error: lastError };
+  }
+
+  async function tryMirrorProductToReviewTable(client, primaryTable, product, owner) {
+    const reviewTable = await resolveReviewProductTable(primaryTable);
+    if (!reviewTable || reviewTable === primaryTable) return false;
+
+    const mirror = await tryInsertProductToCloud(client, reviewTable, product, owner);
+    if (!mirror.ok) {
+      console.warn("product review mirror failed", {
+        primaryTable,
+        reviewTable,
+        status: Number(mirror.error?.status || 0) || undefined,
+        code: safeText(mirror.error?.code || ""),
+        message: safeText(mirror.error?.message || ""),
+        details: safeText(mirror.error?.details || ""),
+      });
+      return false;
+    }
+
+    return true;
   }
 
   async function trySyncLocalProductToCloud(product, owner) {
@@ -850,16 +1691,19 @@
     const order = [preferred, ...tables.filter((table) => table !== preferred)];
 
     const client = getClient();
-    const cloudOwner = {
-      ...owner,
-      id: undefined,
+    const resolvedOwner = await resolveCloudOwnerForLocal(owner);
+    const cloudOwnerBase = {
+      ...resolvedOwner,
+      id: safeText(resolvedOwner.id || "") || undefined,
       authSource: "local-cloud-sync",
     };
+    const cloudOwner = await resolveProductOwnerForInsert(cloudOwnerBase);
 
     for (const table of order) {
       const result = await tryInsertProductToCloud(client, table, product, cloudOwner);
       if (result.ok) {
         state.preferredInsertTable = table;
+        await tryMirrorProductToReviewTable(client, table, product, cloudOwner);
         return true;
       }
     }
@@ -870,19 +1714,26 @@
   async function insertProduct(product, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
     if (isLocalOwner(owner)) {
+      let synced = false;
+      try {
+        synced = await trySyncLocalProductToCloud(product, owner);
+      } catch (error) {
+        console.warn("local product cloud sync skipped", error);
+      }
+
+      if (!synced) {
+        throw new Error("CLOUD_SYNC_REQUIRED");
+      }
+
+      // Keep a local mirror only after cloud save succeeds.
       const rows = readLocalProducts();
       const record = normalizeLocalProduct(product, owner);
       rows.push(record);
       writeLocalProducts(sortProducts(rows));
-
-      try {
-        await trySyncLocalProductToCloud(product, owner);
-      } catch (error) {
-        console.warn("local product cloud sync skipped", error);
-      }
       return true;
     }
-    if (!owner.id || !owner.email) throw new Error("Authenticated owner is required.");
+    const insertOwner = await resolveProductOwnerForInsert(owner);
+    if (!insertOwner.email) throw new Error("Authenticated owner email is required.");
 
     const tables = await resolveAvailableProductTables();
     const preferred = state.preferredInsertTable && tables.includes(state.preferredInsertTable)
@@ -894,14 +1745,29 @@
     let lastError = null;
 
     for (const table of order) {
-      const payloads = buildProductInsertPayloads(table, product, owner);
+      const payloads = buildProductInsertPayloads(table, product, insertOwner);
       for (const payload of payloads) {
-        const { error } = await client.from(table).insert([payload]);
-        if (!error) {
+        const candidates = [
+          payload,
+          cleanPayload({ ...payload, owner_id: undefined, seller_id: undefined, user_id: undefined }, { keepEmpty: true }),
+        ];
+
+        let inserted = false;
+        for (const candidate of candidates) {
+          const result = await insertRowAdaptive(client, table, candidate);
+          if (!result.ok) {
+            lastError = result.error || lastError;
+            continue;
+          }
+          inserted = true;
+          break;
+        }
+
+        if (inserted) {
           state.preferredInsertTable = table;
+          await tryMirrorProductToReviewTable(client, table, product, insertOwner);
           return true;
         }
-        lastError = error;
       }
     }
 
@@ -1191,8 +2057,7 @@
       const { data, error } = await client
         .from("partners_requests")
         .insert([candidate])
-        .select("*")
-        .limit(1);
+        .select("*");
 
       if (!error) {
         return Array.isArray(data) && data.length ? data[0] : null;
@@ -1261,8 +2126,7 @@
       const { data, error } = await client
         .from("partners_requests")
         .insert([candidate])
-        .select("*")
-        .limit(1);
+        .select("*");
 
       if (!error) {
         const row = Array.isArray(data) && data.length ? data[0] : null;
@@ -1361,21 +2225,470 @@
     throw lastError || new Error("RPC function not found.");
   }
 
+  function buildOrderOwnerCandidates(owner = {}) {
+    const idSet = new Set();
+    const emailSet = new Set();
+
+    const pushId = (value) => {
+      const clean = safeText(value);
+      if (!clean) return;
+      idSet.add(clean);
+    };
+    const pushEmail = (value) => {
+      const clean = normalizeEmail(value);
+      if (!clean) return;
+      emailSet.add(clean);
+    };
+
+    pushId(owner.id);
+    pushEmail(owner.email);
+
+    return {
+      ids: [...idSet],
+      emails: [...emailSet],
+    };
+  }
+
+  function rowBelongsToOrderOwner(row, ownerCandidates = {}) {
+    if (!row || typeof row !== "object") return false;
+
+    const ids = Array.from(
+      new Set(
+        (Array.isArray(ownerCandidates.ids) ? ownerCandidates.ids : [])
+          .map((value) => safeText(value))
+          .filter(Boolean)
+      )
+    );
+    const emails = Array.from(
+      new Set(
+        (Array.isArray(ownerCandidates.emails) ? ownerCandidates.emails : [])
+          .map((value) => normalizeEmail(value))
+          .filter(Boolean)
+      )
+    );
+
+    if (ids.length) {
+      const idColumns = Array.from(new Set([...ORDER_OWNER_ID_COLUMNS, ...PRODUCT_OWNER_ID_COLUMNS]));
+      const rowIds = idColumns.map((column) => safeText(row[column])).filter(Boolean);
+      if (rowIds.some((value) => ids.includes(value))) return true;
+    }
+
+    if (emails.length) {
+      const emailColumns = Array.from(new Set([...ORDER_OWNER_EMAIL_COLUMNS, ...PRODUCT_OWNER_EMAIL_COLUMNS]));
+      const rowEmails = emailColumns.map((column) => normalizeEmail(row[column])).filter(Boolean);
+      if (rowEmails.some((value) => emails.includes(value))) return true;
+    }
+
+    return false;
+  }
+
+  function normalizeOrderBaseRecord(row = {}, fallbackId = "") {
+    return {
+      id: String(pickFirst(row, ORDER_ID_COLUMNS, fallbackId)),
+      status: normalizeOrderStatus(pickFirst(row, ORDER_STATUS_COLUMNS, "pending")),
+      createdAt: safeText(pickFirst(row, ["created_at", "order_created_at", "createdAt"], "")),
+      customerName: safeText(pickFirst(row, ["customer_name", "user_name", "name"], "")),
+      customerEmail: normalizeEmail(pickFirst(row, ["customer_email", "user_email", "email"], "")),
+      customerPhone: safeText(pickFirst(row, ["customer_phone", "phone"], "")),
+      address: safeText(pickFirst(row, ["address", "customer_address"], "")),
+      total: toNumber(pickFirst(row, ["total", "total_price", "amount"], 0)),
+      items: [],
+    };
+  }
+
+  function dedupeOrderItems(items = []) {
+    const out = [];
+    const seen = new Set();
+
+    (Array.isArray(items) ? items : []).forEach((item) => {
+      const normalized = normalizeOrderItem(item || {}, null);
+      const key = [
+        safeText(normalized.productId),
+        safeText(normalized.name).toLowerCase(),
+        toNumber(normalized.quantity),
+        toNumber(normalized.price),
+      ].join("|");
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push(normalized);
+    });
+
+    return out;
+  }
+
+  function sortNormalizedOrders(rows = []) {
+    const out = Array.isArray(rows) ? rows.slice() : [];
+    out.sort((a, b) => {
+      const dateA = Date.parse(a.createdAt || "") || 0;
+      const dateB = Date.parse(b.createdAt || "") || 0;
+      if (dateA !== dateB) return dateB - dateA;
+      return toNumber(b.id) - toNumber(a.id);
+    });
+    return out;
+  }
+
+  function hasAnyKnownOwnerColumn(row) {
+    if (!row || typeof row !== "object") return false;
+    const keys = Object.keys(row);
+    const known = new Set([...ORDER_OWNER_ID_COLUMNS, ...ORDER_OWNER_EMAIL_COLUMNS, ...PRODUCT_OWNER_ID_COLUMNS, ...PRODUCT_OWNER_EMAIL_COLUMNS]);
+    return keys.some((key) => known.has(String(key || "").toLowerCase()));
+  }
+
+  async function getPartnerOrdersFromTables(ownerCandidates = {}) {
+    const client = getClient();
+    const orderTables = await resolveAvailableOrderTables();
+    if (!orderTables.length) return [];
+
+    const directRows = [];
+    for (const table of orderTables) {
+      const { data, error } = await client.from(table).select("*").limit(1000);
+      if (error) {
+        if (isAuthPermissionError(error)) throw error;
+        continue;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      const filtered = rows.filter((row) => rowBelongsToOrderOwner(row, ownerCandidates));
+      filtered.forEach((row) => directRows.push(row));
+
+      if (!filtered.length && rows.length) {
+        const hasOwnerColumns = rows.some((row) => hasAnyKnownOwnerColumn(row));
+        if (!hasOwnerColumns) {
+          rows.forEach((row) => directRows.push(row));
+        }
+      }
+    }
+
+    const normalized = normalizeRpcOrders(directRows);
+    const grouped = new Map(
+      normalized.map((order) => [
+        String(order.id),
+        {
+          ...order,
+          items: Array.isArray(order.items) ? order.items.slice() : [],
+        },
+      ])
+    );
+
+    const knownOrderIds = new Set(
+      normalized
+        .map((order) => safeText(order.id))
+        .filter(Boolean)
+    );
+
+    const orderItemTables = await resolveAvailableOrderItemTables();
+    for (const table of orderItemTables) {
+      const { data, error } = await client.from(table).select("*").limit(2000);
+      if (error) {
+        if (isAuthPermissionError(error)) throw error;
+        continue;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      rows.forEach((row) => {
+        const rowOrderId = safeText(pickFirst(row, [...ORDER_ITEM_ORDER_ID_COLUMNS, ...ORDER_ID_COLUMNS], ""));
+        if (!rowOrderId) return;
+
+        const ownerMatched = rowBelongsToOrderOwner(row, ownerCandidates);
+        if (!knownOrderIds.has(rowOrderId) && !ownerMatched) return;
+
+        knownOrderIds.add(rowOrderId);
+
+        let target = grouped.get(rowOrderId);
+        if (!target) {
+          target = normalizeOrderBaseRecord(row, rowOrderId);
+          grouped.set(rowOrderId, target);
+        } else {
+          if (!safeText(target.createdAt)) {
+            target.createdAt = safeText(pickFirst(row, ["created_at", "order_created_at", "createdAt"], ""));
+          }
+          if (!safeText(target.customerName)) {
+            target.customerName = safeText(pickFirst(row, ["customer_name", "user_name", "name"], ""));
+          }
+          if (!safeText(target.customerEmail)) {
+            target.customerEmail = normalizeEmail(pickFirst(row, ["customer_email", "user_email", "email"], ""));
+          }
+          if (!safeText(target.customerPhone)) {
+            target.customerPhone = safeText(pickFirst(row, ["customer_phone", "phone"], ""));
+          }
+          if (!safeText(target.address)) {
+            target.address = safeText(pickFirst(row, ["address", "customer_address"], ""));
+          }
+          if (!target.total) {
+            target.total = toNumber(pickFirst(row, ["total", "total_price", "amount"], 0));
+          }
+        }
+
+        const item = normalizeOrderItem({
+          product_id: pickFirst(row, ["product_id", "item_id", "id"], ""),
+          product_name: pickFirst(row, ORDER_ITEM_NAME_COLUMNS, "منتج"),
+          quantity: pickFirst(row, ORDER_ITEM_QTY_COLUMNS, 1),
+          price: pickFirst(row, ORDER_ITEM_PRICE_COLUMNS, 0),
+        }, row);
+
+        target.items.push(item);
+      });
+    }
+
+    const out = [...grouped.values()].map((order) => {
+      const items = dedupeOrderItems(order.items);
+      const total = order.total || items.reduce((sum, item) => sum + item.lineTotal, 0);
+      return {
+        ...order,
+        status: normalizeOrderStatus(order.status),
+        items,
+        total,
+      };
+    });
+
+    return sortNormalizedOrders(out);
+  }
+
+  async function updateOrderStatusDirect(orderId, status, ownerCandidates = {}) {
+    const cleanOrderId = safeText(orderId);
+    const cleanStatus = normalizeOrderStatus(status);
+    if (!cleanOrderId || !cleanStatus) return false;
+
+    const client = getClient();
+    const orderTables = await resolveAvailableOrderTables();
+    if (!orderTables.length) return false;
+
+    const now = new Date().toISOString();
+    const payloads = [
+      cleanPayload({ status: cleanStatus, updated_at: now }, { keepEmpty: true }),
+      cleanPayload({ order_status: cleanStatus, updated_at: now }, { keepEmpty: true }),
+      cleanPayload({ status: cleanStatus, order_status: cleanStatus, updated_at: now }, { keepEmpty: true }),
+      cleanPayload({ status: cleanStatus }, { keepEmpty: true }),
+      cleanPayload({ order_status: cleanStatus }, { keepEmpty: true }),
+    ].filter((payload) => Object.keys(payload).length);
+
+    const rawCandidates = [];
+
+    (Array.isArray(ownerCandidates.ids) ? ownerCandidates.ids : []).forEach((ownerValue) => {
+      const cleanOwner = safeText(ownerValue);
+      if (!cleanOwner) return;
+      ORDER_OWNER_ID_COLUMNS.forEach((ownerColumn) => {
+        ORDER_ID_COLUMNS.forEach((idColumn) => {
+          rawCandidates.push({ idColumn, ownerColumn, ownerValue: cleanOwner });
+        });
+      });
+    });
+
+    (Array.isArray(ownerCandidates.emails) ? ownerCandidates.emails : []).forEach((ownerValue) => {
+      const cleanOwner = normalizeEmail(ownerValue);
+      if (!cleanOwner) return;
+      ORDER_OWNER_EMAIL_COLUMNS.forEach((ownerColumn) => {
+        ORDER_ID_COLUMNS.forEach((idColumn) => {
+          rawCandidates.push({ idColumn, ownerColumn, ownerValue: cleanOwner });
+        });
+      });
+    });
+
+    ORDER_ID_COLUMNS.forEach((idColumn) => {
+      rawCandidates.push({ idColumn, ownerColumn: "", ownerValue: "" });
+    });
+
+    const seen = new Set();
+    const matchCandidates = rawCandidates.filter((candidate) => {
+      const key = `${candidate.idColumn}|${candidate.ownerColumn}|${candidate.ownerValue}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    for (const table of orderTables) {
+      for (const payload of payloads) {
+        for (const candidate of matchCandidates) {
+          let query = client
+            .from(table)
+            .update(payload)
+            .eq(candidate.idColumn, cleanOrderId);
+
+          if (candidate.ownerColumn && candidate.ownerValue) {
+            query = query.eq(candidate.ownerColumn, candidate.ownerValue);
+          }
+
+          const { data, error } = await query.select("*").limit(1);
+          if (error) {
+            if (isAuthPermissionError(error)) throw error;
+            if (isMissingColumnError(error) || isTypeMismatchError(error)) continue;
+            continue;
+          }
+
+          if (Array.isArray(data) && data.length) return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  function dedupeRpcCandidates(candidates = []) {
+    const out = [];
+    const seen = new Set();
+    (Array.isArray(candidates) ? candidates : []).forEach((candidate) => {
+      const name = safeText(candidate?.name || "");
+      if (!name) return;
+      const args = candidate?.args && typeof candidate.args === "object" ? candidate.args : {};
+      const key = `${name}|${JSON.stringify(args)}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ name, args });
+    });
+    return out;
+  }
+
+  function isRecoverableRpcError(error) {
+    if (!error) return false;
+    if (isFunctionNotFoundError(error)) return true;
+    if (isTypeMismatchError(error)) return true;
+
+    const status = Number(error.status || 0);
+    const text = getErrorText(error).toLowerCase();
+    if (status === 400) return true;
+    if (text.includes("function") && text.includes("does not exist")) return true;
+    if (text.includes("could not find the function")) return true;
+    if (text.includes("invalid input syntax for type")) return true;
+    return false;
+  }
+
+  async function callOrderRpcCandidates(candidates = []) {
+    const client = getClient();
+    const list = dedupeRpcCandidates(candidates);
+
+    let lastError = null;
+    let hadSuccess = false;
+
+    for (const candidate of list) {
+      const { data, error } = await client.rpc(candidate.name, candidate.args || {});
+      if (error) {
+        lastError = error;
+        if (isRecoverableRpcError(error)) continue;
+        if (isAuthPermissionError(error)) throw error;
+        continue;
+      }
+
+      hadSuccess = true;
+      const normalized = normalizeRpcOrders(data);
+      if (normalized.length) return normalized;
+    }
+
+    if (hadSuccess) return [];
+    if (lastError) throw lastError;
+    return [];
+  }
+
+  function parseUpdateRpcResult(data) {
+    if (typeof data === "boolean") return data;
+    if (Array.isArray(data)) return data.length > 0;
+    if (data && typeof data === "object" && "updated" in data) return Boolean(data.updated);
+    if (data && typeof data === "object" && "success" in data) return Boolean(data.success);
+    return true;
+  }
+
+  async function callUpdateOrderRpcCandidates(candidates = []) {
+    const client = getClient();
+    const list = dedupeRpcCandidates(candidates);
+
+    let lastError = null;
+    let hadSuccess = false;
+
+    for (const candidate of list) {
+      const { data, error } = await client.rpc(candidate.name, candidate.args || {});
+      if (error) {
+        lastError = error;
+        if (isRecoverableRpcError(error)) continue;
+        if (isAuthPermissionError(error)) throw error;
+        continue;
+      }
+
+      hadSuccess = true;
+      if (parseUpdateRpcResult(data)) return true;
+    }
+
+    if (hadSuccess) return false;
+    if (lastError) throw lastError;
+    return false;
+  }
+
   async function getPartnerOrders(ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
     if (isLocalOwner(owner)) {
       const localOrders = readStorageJSON(LOCAL_KEYS.orders, []);
       return Array.isArray(localOrders) ? localOrders : [];
     }
-    if (!owner.id) throw new Error("Authenticated owner_id is required to read orders.");
 
-    const { data } = await callRpcWithFallback([
-      { name: "get_partner_orders", args: { p_seller_id: owner.id } },
-      { name: "get_partner_orders", args: { seller_id: owner.id } },
-      { name: "get_seller_orders", args: { p_seller_id: owner.id } },
-    ]);
+    const resolvedOwner = await resolveProductOwnerForInsert(owner);
+    const ownerCandidates = buildOrderOwnerCandidates({
+      id: safeText(resolvedOwner.id || owner.id),
+      email: normalizeEmail(resolvedOwner.email || owner.email),
+    });
 
-    return normalizeRpcOrders(data);
+    const functionNames = ["get_partner_orders", "get_seller_orders"];
+    const idArgNames = ["p_seller_id", "seller_id", "p_owner_id", "owner_id", "user_id"];
+    const emailArgNames = ["p_seller_email", "seller_email", "p_owner_email", "owner_email", "user_email", "email"];
+    const rpcCandidates = [];
+
+    functionNames.forEach((fn) => {
+      ownerCandidates.ids.forEach((idValue) => {
+        idArgNames.forEach((argName) => {
+          rpcCandidates.push({ name: fn, args: { [argName]: idValue } });
+        });
+      });
+
+      ownerCandidates.emails.forEach((emailValue) => {
+        emailArgNames.forEach((argName) => {
+          rpcCandidates.push({ name: fn, args: { [argName]: emailValue } });
+        });
+      });
+
+      ownerCandidates.ids.forEach((idValue) => {
+        ownerCandidates.emails.forEach((emailValue) => {
+          rpcCandidates.push({
+            name: fn,
+            args: {
+              p_seller_id: idValue,
+              p_seller_email: emailValue,
+            },
+          });
+        });
+      });
+    });
+
+    if (!rpcCandidates.length) {
+      throw new Error("Partner identity is required to read orders.");
+    }
+
+    let rpcOrders = [];
+    let rpcError = null;
+    try {
+      rpcOrders = await callOrderRpcCandidates(rpcCandidates);
+    } catch (error) {
+      if (isAuthPermissionError(error)) throw error;
+      rpcError = error;
+    }
+
+    if (Array.isArray(rpcOrders) && rpcOrders.length) {
+      return rpcOrders;
+    }
+
+    try {
+      const tableOrders = await getPartnerOrdersFromTables(ownerCandidates);
+      if (Array.isArray(tableOrders) && tableOrders.length) return tableOrders;
+      if (Array.isArray(rpcOrders) && rpcOrders.length === 0) return tableOrders;
+    } catch (tableError) {
+      if (isAuthPermissionError(tableError)) throw tableError;
+      if (!rpcError) rpcError = tableError;
+    }
+
+    if (rpcError) {
+      console.warn("orders rpc fallback returned no rows", {
+        status: Number(rpcError?.status || 0) || undefined,
+        code: safeText(rpcError?.code || ""),
+        message: safeText(rpcError?.message || ""),
+      });
+    }
+    return [];
   }
 
   async function updateOrderStatus(orderId, status, ownerInput = null) {
@@ -1391,7 +2704,6 @@
       writeStorageJSON(LOCAL_KEYS.orders, list);
       return true;
     }
-    if (!owner.id) throw new Error("Authenticated owner_id is required to update order status.");
 
     const cleanOrderId = safeText(orderId);
     const cleanStatus = normalizeOrderStatus(status);
@@ -1399,37 +2711,96 @@
       throw new Error("orderId and status are required.");
     }
 
-    const { data } = await callRpcWithFallback([
-      {
-        name: "update_partner_order_status",
-        args: {
-          p_seller_id: owner.id,
-          p_order_id: cleanOrderId,
-          p_status: cleanStatus,
-        },
-      },
-      {
-        name: "update_partner_order_status",
-        args: {
-          seller_id: owner.id,
-          order_id: cleanOrderId,
-          status: cleanStatus,
-        },
-      },
-      {
-        name: "set_partner_order_status",
-        args: {
-          p_seller_id: owner.id,
-          p_order_id: cleanOrderId,
-          p_status: cleanStatus,
-        },
-      },
-    ]);
+    const resolvedOwner = await resolveProductOwnerForInsert(owner);
+    const ownerCandidates = buildOrderOwnerCandidates({
+      id: safeText(resolvedOwner.id || owner.id),
+      email: normalizeEmail(resolvedOwner.email || owner.email),
+    });
 
-    if (typeof data === "boolean") return data;
-    if (Array.isArray(data)) return data.length > 0;
-    if (data && typeof data === "object" && "updated" in data) return Boolean(data.updated);
-    return true;
+    const functionNames = ["update_partner_order_status", "set_partner_order_status"];
+    const rpcCandidates = [];
+
+    functionNames.forEach((fn) => {
+      ownerCandidates.ids.forEach((idValue) => {
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            p_seller_id: idValue,
+            p_order_id: cleanOrderId,
+            p_status: cleanStatus,
+          },
+        });
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            seller_id: idValue,
+            order_id: cleanOrderId,
+            status: cleanStatus,
+          },
+        });
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            owner_id: idValue,
+            order_id: cleanOrderId,
+            status: cleanStatus,
+          },
+        });
+      });
+
+      ownerCandidates.emails.forEach((emailValue) => {
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            p_seller_email: emailValue,
+            p_order_id: cleanOrderId,
+            p_status: cleanStatus,
+          },
+        });
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            seller_email: emailValue,
+            order_id: cleanOrderId,
+            status: cleanStatus,
+          },
+        });
+        rpcCandidates.push({
+          name: fn,
+          args: {
+            owner_email: emailValue,
+            order_id: cleanOrderId,
+            status: cleanStatus,
+          },
+        });
+      });
+    });
+
+    if (!rpcCandidates.length) {
+      throw new Error("Partner identity is required to update order status.");
+    }
+
+    let rpcUpdated = false;
+    let rpcError = null;
+    try {
+      rpcUpdated = await callUpdateOrderRpcCandidates(rpcCandidates);
+      if (rpcUpdated) return true;
+    } catch (error) {
+      if (isAuthPermissionError(error)) throw error;
+      rpcError = error;
+    }
+
+    const updatedDirect = await updateOrderStatusDirect(cleanOrderId, cleanStatus, ownerCandidates);
+    if (updatedDirect) return true;
+
+    if (rpcError) {
+      console.warn("order status rpc fallback failed", {
+        status: Number(rpcError?.status || 0) || undefined,
+        code: safeText(rpcError?.code || ""),
+        message: safeText(rpcError?.message || ""),
+      });
+    }
+    return false;
   }
 
   window.PartnerAPI = Object.freeze({
@@ -1445,6 +2816,7 @@
     onAuthStateChange,
     getMyProfile,
     upsertProfile,
+    syncUserRecord: syncUserDirectoryRecord,
     updateMyProfile,
     hasPartnerProfile,
     savePartnerRequest,

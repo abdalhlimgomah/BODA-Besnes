@@ -44,7 +44,7 @@ a {
 .page-wrap {
   width: min(1160px, 100% - 32px);
   margin-inline: auto;
-  padding-block: 24px 40px;
+  padding-block: 28px 44px;
 }
 
 .hidden {
@@ -148,6 +148,24 @@ button:disabled {
   gap: 16px;
 }
 
+.auth-card-login {
+  position: relative;
+  overflow: hidden;
+  border-color: #cfe1f2;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+}
+
+.auth-card-login::before {
+  content: "";
+  position: absolute;
+  inset: -120px auto auto -120px;
+  width: 260px;
+  height: 260px;
+  border-radius: 999px;
+  background: radial-gradient(circle at center, rgba(15, 118, 110, 0.2) 0, rgba(15, 118, 110, 0) 68%);
+  pointer-events: none;
+}
+
 .auth-brand {
   display: inline-flex;
   align-items: center;
@@ -160,6 +178,19 @@ button:disabled {
   margin: 0;
   font-size: 1.65rem;
   font-weight: 800;
+}
+
+.auth-kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  background: #e7f7f3;
+  color: #0d6b63;
+  border: 1px solid #b7e6dd;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .auth-subtitle {
@@ -228,6 +259,37 @@ select:focus {
   font-weight: 700;
 }
 
+.auth-links-login {
+  border-top: 1px dashed #d7e3ef;
+  padding-top: 12px;
+}
+
+.login-benefits {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.login-benefit {
+  border-radius: 12px;
+  border: 1px solid #d4e2f0;
+  background: #f4f8fd;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-benefit strong {
+  font-size: 0.9rem;
+  color: #21344f;
+}
+
+.login-benefit small {
+  color: #4f637d;
+  line-height: 1.5;
+}
+
 .otp-wrap {
   display: flex;
   justify-content: center;
@@ -260,32 +322,51 @@ select:focus {
   top: 0;
   z-index: 50;
   backdrop-filter: blur(9px);
-  background: rgba(255, 255, 255, 0.84);
+  background: rgba(255, 255, 255, 0.9);
   border-bottom: 1px solid #d8e0ec;
+  box-shadow: 0 8px 24px rgba(20, 38, 64, 0.08);
 }
 
 .topbar-inner {
   width: min(1160px, 100% - 32px);
   margin-inline: auto;
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "brand actions"
+    "tabs tabs";
   align-items: center;
-  padding: 12px 0;
-  gap: 12px;
+  padding: 12px 0 14px;
+  gap: 10px 14px;
 }
 
 .brand-title {
+  grid-area: brand;
   font-weight: 800;
   color: var(--primary);
+  font-size: 1.05rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .topbar-actions {
+  grid-area: actions;
   display: flex;
   align-items: center;
   gap: 8px;
+  justify-self: start;
+  flex-wrap: wrap;
+}
+
+.topbar-actions .pill {
+  background: #e9f1fd;
+  color: #1f3e68;
+  border: 1px solid #d4e3f8;
 }
 
 .tabs-nav {
+  grid-area: tabs;
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
@@ -295,16 +376,24 @@ select:focus {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 108px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  color: #31445e;
+  min-width: 118px;
+  padding: 10px 16px;
+  border-radius: 12px;
+  color: #2c405c;
   font-weight: 700;
-  background: #edf2fa;
+  border: 1px solid #d7e1ef;
+  background: #f2f6fc;
+  transition: 0.2s ease;
+}
+
+.tabs-nav a:hover {
+  background: #e6eef9;
+  border-color: #c7d6ea;
 }
 
 .tabs-nav a.active {
   background: var(--primary);
+  border-color: var(--primary);
   color: #fff;
 }
 
@@ -357,6 +446,20 @@ select:focus {
   object-fit: cover;
 }
 
+.product-preview {
+  max-width: 340px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.product-preview .product-media {
+  height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+}
+
 .product-body {
   padding: 12px;
   display: flex;
@@ -401,7 +504,7 @@ select:focus {
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 10px;
 }
 
@@ -551,28 +654,50 @@ select:focus {
   .field-grid,
   .account-grid,
   .order-summary,
-  .stats-grid {
+  .login-benefits {
     grid-template-columns: 1fr;
   }
 
   .topbar-inner {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "brand"
+      "actions"
+      "tabs";
     align-items: stretch;
   }
 
-  .tabs-nav {
+  .topbar-actions {
     justify-content: space-between;
   }
 
+  .tabs-nav {
+    justify-content: stretch;
+  }
+
   .tabs-nav a {
-    flex: 1;
-    min-width: 0;
+    flex: 1 1 120px;
+    min-width: 120px;
   }
 }
 
 @media (max-width: 600px) {
   .page-wrap {
     width: min(1160px, 100% - 20px);
+  }
+
+  .topbar-inner {
+    width: min(1160px, 100% - 20px);
+  }
+
+  .topbar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .topbar-actions .btn,
+  .topbar-actions button {
+    width: 100%;
   }
 
   .auth-card {

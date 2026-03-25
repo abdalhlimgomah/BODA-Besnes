@@ -1,11 +1,24 @@
-﻿(() => {
+(() => {
   "use strict";
 
   const CONFIG = window.APP_CONFIG;
-  const DIRECT_SIGNUP_NAME = "admen788BOmen";
-  const DIRECT_SIGNUP_EMAIL = "admen788BOmen@gmail.com";
-  const DIRECT_SIGNUP_PASSWORD = "boda324sdjv-";
+  const DIRECT_TEST_ACCOUNTS = Object.freeze([
+    Object.freeze({
+      id: "local-boda-test",
+      name: "Buda_TEST_ACCOUNT",
+      email: "test.partner@boda.local",
+      password: "Buda@12345Test!",
+    }),
+    // حساب قديم للإبقاء على التوافق مع أي استخدام سابق.
+    Object.freeze({
+      id: "local-admen788",
+      name: "admen788BOmen",
+      email: "admen788BOmen@gmail.com",
+      password: "boda324sdjv-",
+    }),
+  ]);
   const LOCAL_DIRECT_ACCOUNT_KEY = "local_direct_account_v1";
+  const PENDING_SIGNIN_MAX_AGE_MS = 30 * 60 * 1000;
   const STORAGE = Object.freeze({
     signupData: "signup_data",
     signupEmail: "signup_email",
@@ -16,6 +29,9 @@
     resendCooldownUntil: "resend_cooldown_until",
     loginFailCount: "auth_login_fail_count",
     loginLockUntil: "auth_login_lock_until",
+    supabaseCooldownUntil: "auth_supabase_cooldown_until",
+    pendingSignupEmail: "auth_pending_signup_email",
+    pendingSignupAt: "auth_pending_signup_at",
   });
 
   let emailJsReady = false;
@@ -24,8 +40,8 @@
   let verifyInFlight = false;
 
   function normalizeEmail(value) {
-    return window.BODASecurity?.normalizeEmail
-      ? window.BODASecurity.normalizeEmail(value)
+    return window.BudaSecurity?.normalizeEmail
+      ? window.BudaSecurity.normalizeEmail(value)
       : String(value || "").trim().toLowerCase();
   }
 
@@ -49,6 +65,44 @@
     holder.classList.remove("error", "success", "info");
   }
 
+  function notifyActivationPending() {
+    notify("تم إنشاء الحساب بنجاح. يمكنك تسجيل الدخول لاحقًا.", "info");
+  }
+
+  function markPendingSignup(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return;
+    localStorage.setItem(STORAGE.pendingSignupEmail, normalizedEmail);
+    localStorage.setItem(STORAGE.pendingSignupAt, String(Date.now()));
+  }
+
+  function clearPendingSignup(email = "") {
+    const normalizedEmail = normalizeEmail(email);
+    const storedEmail = normalizeEmail(localStorage.getItem(STORAGE.pendingSignupEmail) || "");
+    if (normalizedEmail && storedEmail && normalizedEmail !== storedEmail) return;
+    localStorage.removeItem(STORAGE.pendingSignupEmail);
+    localStorage.removeItem(STORAGE.pendingSignupAt);
+  }
+
+  function hasRecentPendingSignup(email) {
+    const normalizedEmail = normalizeEmail(email);
+    if (!normalizedEmail) return false;
+
+    const storedEmail = normalizeEmail(localStorage.getItem(STORAGE.pendingSignupEmail) || "");
+    const storedAt = Number(localStorage.getItem(STORAGE.pendingSignupAt) || 0);
+    if (!storedEmail || !storedAt) {
+      clearPendingSignup();
+      return false;
+    }
+    if (storedEmail !== normalizedEmail) return false;
+
+    if (Date.now() - storedAt > PENDING_SIGNIN_MAX_AGE_MS) {
+      clearPendingSignup(normalizedEmail);
+      return false;
+    }
+    return true;
+  }
+
   function setButtonLoading(button, loadingText, isLoading) {
     if (!button) return;
     if (!button.dataset.defaultText) button.dataset.defaultText = button.textContent || "";
@@ -56,22 +110,45 @@
     button.textContent = isLoading ? loadingText : button.dataset.defaultText;
   }
 
-  function isDirectAccountEmail(email) {
-    return normalizeEmail(email) === normalizeEmail(DIRECT_SIGNUP_EMAIL);
+  function getDefaultDirectAccount() {
+    return DIRECT_TEST_ACCOUNTS[0];
   }
 
-  function isDirectAccountPassword(password) {
-    return String(password || "") === DIRECT_SIGNUP_PASSWORD;
+  function findDirectAccountByEmail(email) {
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) return null;
+    return DIRECT_TEST_ACCOUNTS.find((account) => normalizeEmail(account.email) === cleanEmail) || null;
+  }
+
+  function findDirectAccountByName(name) {
+    const cleanName = safeText(name);
+    if (!cleanName) return null;
+    return DIRECT_TEST_ACCOUNTS.find((account) => safeText(account.name) === cleanName) || null;
+  }
+
+  function isDirectAccountEmail(email) {
+    return Boolean(findDirectAccountByEmail(email));
+  }
+
+  function isDirectAccountPassword(password, email = "") {
+    const input = String(password || "");
+    const account = findDirectAccountByEmail(email);
+    if (account) return input === account.password;
+    return DIRECT_TEST_ACCOUNTS.some((candidate) => input === candidate.password);
   }
 
   function isDirectAccountSignup(name, email, password) {
-    const byName = safeText(name) === DIRECT_SIGNUP_NAME;
-    const byEmail = isDirectAccountEmail(email);
-    return (byName || byEmail) && isDirectAccountPassword(password);
+    const byEmail = findDirectAccountByEmail(email);
+    if (byEmail) return String(password || "") === byEmail.password;
+
+    const byName = findDirectAccountByName(name);
+    if (byName) return String(password || "") === byName.password;
+
+    return false;
   }
 
-  function completeDirectLocalLogin(name = "", phone = "") {
-    const localUser = buildLocalDirectUser(name, phone);
+  function completeDirectLocalLogin(name = "", phone = "", email = "") {
+    const localUser = buildLocalDirectUser(name, phone, email);
     const applied = window.PartnerSession?.setCurrentUser?.(localUser);
     if (!applied) throw new Error("failed_to_store_local_user");
     resetLoginAttemptState();
@@ -89,11 +166,13 @@
     }
   }
 
-  function saveLocalDirectAccount(name = "", phone = "") {
+  function saveLocalDirectAccount(name = "", phone = "", email = "") {
     const existing = readLocalDirectAccount() || {};
+    const account = findDirectAccountByEmail(email) || getDefaultDirectAccount();
     const next = {
-      email: normalizeEmail(DIRECT_SIGNUP_EMAIL),
-      name: safeText(name || existing.name || DIRECT_SIGNUP_NAME),
+      id: safeText(account.id || "local-direct"),
+      email: normalizeEmail(account.email),
+      name: safeText(name || existing.name || account.name),
       phone: safeText(phone || existing.phone || ""),
       createdAt: safeText(existing.createdAt || new Date().toISOString()),
       updatedAt: new Date().toISOString(),
@@ -102,23 +181,118 @@
     return next;
   }
 
-  function buildLocalDirectUser(name = "", phone = "") {
-    const stored = saveLocalDirectAccount(name, phone);
+  function buildLocalDirectUser(name = "", phone = "", email = "") {
+    const account = findDirectAccountByEmail(email) || getDefaultDirectAccount();
+    const stored = saveLocalDirectAccount(name, phone, account.email);
     return {
-      id: "local-admen788",
-      email: normalizeEmail(stored.email || DIRECT_SIGNUP_EMAIL),
-      name: safeText(stored.name || DIRECT_SIGNUP_NAME),
+      id: safeText(stored.id || account.id || "local-direct"),
+      email: normalizeEmail(stored.email || account.email),
+      name: safeText(stored.name || account.name),
       phone: safeText(stored.phone || ""),
       authSource: "local",
       loginTime: new Date().toISOString(),
     };
   }
 
+  function pickFirstLegacyValue(row = {}, keys = []) {
+    if (!row || typeof row !== "object") return "";
+    for (const key of keys) {
+      const value = row[key];
+      if (value !== undefined && value !== null && String(value).trim() !== "") {
+        return value;
+      }
+    }
+    return "";
+  }
+
+  function buildLegacyLocalUser(legacyUser = null, fallbackEmail = "") {
+    const row = legacyUser?.row && typeof legacyUser.row === "object" ? legacyUser.row : {};
+    const email = normalizeEmail(
+      legacyUser?.email ||
+      pickFirstLegacyValue(row, ["email", "user_email", "owner_email", "mail"]) ||
+      fallbackEmail
+    );
+    const id = safeText(
+      pickFirstLegacyValue(row, ["user_id", "owner_id", "id"]) ||
+      (email ? `legacy-${email}` : "")
+    );
+    const name = safeText(
+      legacyUser?.name ||
+      pickFirstLegacyValue(row, ["full_name", "name", "username", "owner_name"])
+    );
+    const phone = safeText(
+      legacyUser?.phone ||
+      pickFirstLegacyValue(row, ["phone", "mobile", "owner_phone", "phone_number"])
+    );
+
+    return {
+      id,
+      email,
+      name,
+      phone,
+      authSource: "local",
+      loginTime: new Date().toISOString(),
+    };
+  }
+
+  async function tryLegacyDirectoryLogin(email = "", passwordCandidates = []) {
+    if (!window.PartnerAPI?.findLegacyUserForLogin || !window.PartnerSession?.setCurrentUser) return false;
+
+    const normalizedEmail = normalizeEmail(email);
+    const candidates = Array.from(
+      new Set(
+        (Array.isArray(passwordCandidates) ? passwordCandidates : [])
+          .map((value) => String(value || ""))
+          .filter(Boolean)
+      )
+    );
+    if (!normalizedEmail || !candidates.length) return false;
+
+    for (const candidatePassword of candidates) {
+      let legacyUser = null;
+      try {
+        legacyUser = await window.PartnerAPI.findLegacyUserForLogin({
+          email: normalizedEmail,
+          password: candidatePassword,
+        });
+      } catch (error) {
+        console.warn("legacy direct lookup failed", error);
+        continue;
+      }
+
+      if (!legacyUser?.passwordVerified) continue;
+
+      const localUser = buildLegacyLocalUser(legacyUser, normalizedEmail);
+      if (!localUser.email) continue;
+
+      const applied = window.PartnerSession.setCurrentUser(localUser);
+      if (!applied) continue;
+
+      resetLoginAttemptState();
+      clearPendingSignup(normalizedEmail);
+
+      try {
+        await ensureUserDirectoryRecord({
+          email: localUser.email,
+          full_name: localUser.name,
+          phone: localUser.phone,
+          password: candidatePassword,
+        }, localUser);
+      } catch (syncError) {
+        console.warn("legacy directory sync skipped", syncError);
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
   async function buildOtpHash(email, otp) {
     const normalizedEmail = normalizeEmail(email);
     const raw = `${String(otp || "")}|${normalizedEmail}|OTP_V1`;
-    if (window.BODASecurity?.hashText) {
-      return window.BODASecurity.hashText(raw);
+    if (window.BudaSecurity?.hashText) {
+      return window.BudaSecurity.hashText(raw);
     }
     return raw;
   }
@@ -217,22 +391,39 @@
     );
   }
 
-  function getLockSeconds() {
-    const lockUntil = Number(localStorage.getItem(STORAGE.loginLockUntil) || 0);
-    return Math.max(0, Math.ceil((lockUntil - Date.now()) / 1000));
+  function getSupabaseCooldownSeconds() {
+    const cooldownUntil = Number(localStorage.getItem(STORAGE.supabaseCooldownUntil) || 0);
+    return Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000));
+  }
+
+  function setSupabaseCooldown(seconds) {
+    const safeSeconds = Math.max(0, Number(seconds) || 0);
+    if (!safeSeconds) {
+      localStorage.removeItem(STORAGE.supabaseCooldownUntil);
+      return;
+    }
+    localStorage.setItem(STORAGE.supabaseCooldownUntil, String(Date.now() + safeSeconds * 1000));
   }
 
   function registerLoginFailure() {
     const currentFail = Number(localStorage.getItem(STORAGE.loginFailCount) || 0) + 1;
     localStorage.setItem(STORAGE.loginFailCount, String(currentFail));
-    if (currentFail >= CONFIG.LOGIN_MAX_ATTEMPTS) {
-      localStorage.setItem(STORAGE.loginLockUntil, String(Date.now() + CONFIG.LOGIN_LOCK_MS));
-    }
   }
 
   function resetLoginAttemptState() {
     localStorage.removeItem(STORAGE.loginFailCount);
     localStorage.removeItem(STORAGE.loginLockUntil);
+    localStorage.removeItem(STORAGE.supabaseCooldownUntil);
+  }
+
+  async function ensureUserDirectoryRecord(payload = {}, ownerInput = null) {
+    if (!window.PartnerAPI?.syncUserRecord) return null;
+    try {
+      return await window.PartnerAPI.syncUserRecord(payload, ownerInput);
+    } catch (error) {
+      console.warn("users sync skipped", error);
+      return null;
+    }
   }
 
   async function handleSignupSubmit(event) {
@@ -242,8 +433,8 @@
     const form = event.currentTarget;
     const button = form.querySelector('button[type="submit"]');
 
-    const name = window.BODASecurity?.sanitizeText
-      ? window.BODASecurity.sanitizeText(document.getElementById("signupName")?.value, 120)
+    const name = window.BudaSecurity?.sanitizeText
+      ? window.BudaSecurity.sanitizeText(document.getElementById("signupName")?.value, 120)
       : safeText(document.getElementById("signupName")?.value);
     const phone = safeText(document.getElementById("signupPhone")?.value);
     const email = normalizeEmail(document.getElementById("signupEmail")?.value);
@@ -272,20 +463,20 @@
 
     const directSignup = isDirectAccountSignup(name, email, password);
 
-    if (!directSignup && window.BODASecurity?.isStrongPassword && !window.BODASecurity.isStrongPassword(password)) {
+    if (!directSignup && window.BudaSecurity?.isStrongPassword && !window.BudaSecurity.isStrongPassword(password)) {
       notify("استخدم كلمة مرور قوية: 8 أحرف مع حرف كبير وصغير ورقم ورمز.", "error");
       return;
     }
 
     // الحساب المحلي الخاص يدخل مباشرة بدون أي علاقة بـ Supabase.
-    if (isDirectAccountEmail(email) && !isDirectAccountPassword(password)) {
+    if (isDirectAccountEmail(email) && !isDirectAccountPassword(password, email)) {
       notify("كلمة المرور غير صحيحة للحساب المحلي المحدد.", "error");
       return;
     }
     if (directSignup) {
       setButtonLoading(button, "جارٍ تسجيل الدخول...", true);
       try {
-        completeDirectLocalLogin(name, phone);
+        completeDirectLocalLogin(name, phone, email);
         notify("تم تسجيل الدخول بنجاح.", "success");
         setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
       } catch (error) {
@@ -483,7 +674,7 @@
     }
 
     if (isDirectAccountEmail(data.email)) {
-      if (!isDirectAccountPassword(data.password_hash)) {
+      if (!isDirectAccountPassword(data.password_hash, data.email)) {
         notify("كلمة المرور غير صحيحة للحساب المحلي المحدد.", "error");
         return;
       }
@@ -491,7 +682,7 @@
       setButtonLoading(button, "جارٍ تسجيل الدخول...", true);
       verifyInFlight = true;
       try {
-        completeDirectLocalLogin(data.name, data.phone);
+        completeDirectLocalLogin(data.name, data.phone, data.email);
         clearSignupSession();
         notify("تم تسجيل الدخول بنجاح.", "success");
         setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
@@ -510,65 +701,44 @@
     try {
       const passwordHash = data.password_hash;
       let user = null;
+      let hasAuthSession = false;
 
-      // إذا كان الحساب أُنشئ سابقًا، تجنّب signUp لتفادي rate limit.
       try {
-        const signInExisting = await window.PartnerAPI.authSignIn({
+        const signUpResult = await window.PartnerAPI.authSignUp({
           email: data.email,
           password: passwordHash,
+          fullName: data.name,
+          phone: data.phone,
         });
-        user = signInExisting?.user || null;
-      } catch (signInError) {
-        if (isEmailNotConfirmedError(signInError)) {
-          notify("الحساب موجود لكن البريد غير مؤكد. تحقق من رسالة التفعيل أولًا.", "info");
+        user = signUpResult?.user || null;
+        hasAuthSession = Boolean(signUpResult?.session);
+      } catch (signUpError) {
+        if (isRateLimitError(signUpError)) {
+          notify("تعذر إكمال إنشاء الحساب الآن. أعد المحاولة بعد قليل.", "error");
           return;
         }
-        if (!isInvalidLoginCredentialsError(signInError)) {
-          throw signInError;
-        }
-      }
-
-      if (!user) {
-        try {
-          const signUpResult = await window.PartnerAPI.authSignUp({
-            email: data.email,
-            password: passwordHash,
-            fullName: data.name,
-            phone: data.phone,
-          });
-          user = signUpResult?.user || null;
-        } catch (signUpError) {
-          if (isRateLimitError(signUpError)) {
-            notify("تعذر إكمال إنشاء الحساب الآن بسبب ضغط مؤقت. سيتم تحويلك لتسجيل الدخول.", "info");
-            setTimeout(() => {
-              window.PartnerSession.goTo(window.APP_ROUTES.login, {
-                email: data.email,
-                reason: "rate_limit",
-              });
-            }, 900);
-            return;
-          }
-          const msg = String(signUpError?.message || "").toLowerCase();
-          if (msg.includes("already") || msg.includes("registered") || (msg.includes("email") && msg.includes("exists"))) {
-            // حالة سباق: الحساب موجود فعلًا، جرّب تسجيل الدخول مباشرة.
-            try {
-              const signInAfterExists = await window.PartnerAPI.authSignIn({
-                email: data.email,
-                password: passwordHash,
-              });
-              user = signInAfterExists?.user || null;
-            } catch (recoverError) {
-              if (isEmailNotConfirmedError(recoverError)) {
-                notify("الحساب موجود لكن البريد غير مؤكد. تحقق من رسالة التفعيل أولًا.", "info");
-                return;
-              }
-              if (!isInvalidLoginCredentialsError(recoverError)) {
-                throw recoverError;
-              }
+        const msg = String(signUpError?.message || "").toLowerCase();
+        if (msg.includes("already") || msg.includes("registered") || (msg.includes("email") && msg.includes("exists"))) {
+          // الحساب موجود: جرّب فتح جلسة مباشرة بنفس كلمة المرور.
+          try {
+            const signInAfterExists = await window.PartnerAPI.authSignIn({
+              email: data.email,
+              password: passwordHash,
+            });
+            user = signInAfterExists?.user || null;
+            hasAuthSession = Boolean(signInAfterExists?.session);
+          } catch (recoverError) {
+            if (isEmailNotConfirmedError(recoverError)) {
+              markPendingSignup(data.email);
+              notifyActivationPending();
+              return;
             }
-          } else {
-            throw signUpError;
+            if (!isInvalidLoginCredentialsError(recoverError)) {
+              throw recoverError;
+            }
           }
+        } else {
+          throw signUpError;
         }
       }
 
@@ -577,15 +747,31 @@
         return;
       }
 
+      // في حالة تفعيل تأكيد البريد: signUp يرجع user بدون session.
+      // نتوقف هنا لتفادي محاولات upsert/sync غير المصرّح بها قبل تأكيد البريد.
+      if (!hasAuthSession) {
+        markPendingSignup(data.email);
+        notifyActivationPending();
+        return;
+      }
+
       try {
         await window.PartnerAPI.upsertProfile({
           email: data.email,
           full_name: data.name,
           phone: data.phone,
+          password: passwordHash,
         }, user);
       } catch (profileError) {
         console.warn("profile upsert skipped", profileError);
       }
+
+      await ensureUserDirectoryRecord({
+        email: data.email,
+        full_name: data.name,
+        phone: data.phone,
+        password: passwordHash,
+      }, user);
 
       let currentUser = await window.PartnerSession.refreshFromAuth();
       if (!currentUser) {
@@ -596,7 +782,8 @@
           });
         } catch (finalSignInError) {
           if (isEmailNotConfirmedError(finalSignInError)) {
-            notify("تم إنشاء الحساب لكن يلزم تأكيد البريد من رسالة Supabase قبل الدخول.", "info");
+            markPendingSignup(data.email);
+            notifyActivationPending();
             return;
           }
         }
@@ -609,6 +796,7 @@
       }
 
       clearSignupSession();
+      clearPendingSignup(data.email);
       notify("تم إنشاء الحساب بنجاح.", "success");
       setTimeout(() => window.PartnerSession.redirectAfterAuth(data.email), 500);
     } catch (error) {
@@ -620,47 +808,19 @@
     }
   }
 
-  async function tryMigrateLegacyAccount(email, password) {
-    if (!window.PartnerAPI?.findLegacyUserForLogin) {
-      return { user: null, reason: "unsupported" };
-    }
-
-    const legacy = await window.PartnerAPI.findLegacyUserForLogin({ email, password });
-    if (!legacy) {
-      return { user: null, reason: "not_found" };
-    }
-
-    if (!legacy.passwordVerified) {
-      return { user: null, reason: "password_not_verifiable" };
-    }
-    return {
-      user: null,
-      reason: "legacy_signup_required",
-      legacy: {
-        email: normalizeEmail(legacy.email || email),
-        name: safeText(legacy.name),
-        phone: safeText(legacy.phone),
-      },
-    };
-  }
-
   async function handleLoginSubmit(event) {
     event.preventDefault();
     clearNotify();
 
     if (loginInFlight) return;
 
-    const lockSec = getLockSeconds();
-    if (lockSec > 0) {
-      notify(`تم إيقاف المحاولات مؤقتًا. حاول بعد ${lockSec} ثانية.`, "info");
-      return;
-    }
-
     const button = event.currentTarget.querySelector('button[type="submit"]');
     const email = normalizeEmail(document.getElementById("loginEmail")?.value);
-    const password = String(document.getElementById("loginPassword")?.value || "").trim();
+    const passwordRaw = String(document.getElementById("loginPassword")?.value || "");
+    const passwordTrimmed = passwordRaw.trim();
+    const passwordCandidates = passwordRaw === passwordTrimmed ? [passwordRaw] : [passwordRaw, passwordTrimmed];
 
-    if (!email || !password) {
+    if (!email || !passwordTrimmed) {
       notify("أدخل البريد الإلكتروني وكلمة المرور.", "error");
       return;
     }
@@ -671,13 +831,14 @@
     }
 
     if (isDirectAccountEmail(email)) {
-      if (!isDirectAccountPassword(password)) {
+      const isDirectMatch = passwordCandidates.some((candidate) => isDirectAccountPassword(candidate, email));
+      if (!isDirectMatch) {
         registerLoginFailure();
-        notify("البريد الإلكتروني أو كلمة المرور غير صحيحة.", "error");
+        notify("تعذر تسجيل الدخول بهذه البيانات. تحقق منها أو أنشئ حسابًا جديدًا.", "error");
         return;
       }
       try {
-        completeDirectLocalLogin();
+        completeDirectLocalLogin("", "", email);
       } catch {
         notify("تعذر حفظ بيانات الحساب المحلي.", "error");
         return;
@@ -690,6 +851,11 @@
     loginInFlight = true;
     setButtonLoading(button, "جارٍ تسجيل الدخول...", true);
     try {
+      if (hasRecentPendingSignup(email)) {
+        notifyActivationPending();
+        return;
+      }
+
       const attemptSignIn = async (pass) => {
         try {
           const { user } = await window.PartnerAPI.authSignIn({
@@ -705,49 +871,36 @@
         }
       };
 
-      let user = await attemptSignIn(password);
-
-      let legacyRecovery = null;
-      if (!user) {
-        try {
-          legacyRecovery = await tryMigrateLegacyAccount(email, password);
-        } catch (legacyError) {
-          console.warn("legacy login check failed", legacyError);
-        }
+      let user = null;
+      for (const candidatePassword of passwordCandidates) {
+        user = await attemptSignIn(candidatePassword);
+        if (user) break;
       }
-
       if (!user) {
-        if (legacyRecovery?.reason === "password_not_verifiable") {
-          notify("الحساب موجود لكنه غير مرتبط بنظام تسجيل الدخول الحالي. تواصل مع الدعم لنقل الحساب.", "error");
-          return;
-        }
-        if (legacyRecovery?.reason === "legacy_signup_required") {
-          notify("الحساب موجود في النظام القديم. تم إيقاف الإنشاء التلقائي. سيتم تحويلك لصفحة إنشاء حساب.", "info");
-          const query = { email };
-          const legacyName = safeText(legacyRecovery?.legacy?.name);
-          const legacyPhone = safeText(legacyRecovery?.legacy?.phone);
-          if (legacyName) query.name = legacyName;
-          if (legacyPhone) query.phone = legacyPhone;
-          setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.signup, query), 900);
+        const legacyLoggedIn = await tryLegacyDirectoryLogin(email, passwordCandidates);
+        if (legacyLoggedIn) {
+          notify("Login successful.", "success");
+          setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
           return;
         }
         registerLoginFailure();
-        notify("البريد الإلكتروني أو كلمة المرور غير صحيحة.", "error");
+        notify("تعذر تسجيل الدخول بهذه البيانات. تحقق منها أو أنشئ حسابًا جديدًا.", "error");
         return;
       }
 
       resetLoginAttemptState();
+      clearPendingSignup(email);
       const currentUser = await window.PartnerSession.refreshFromAuth();
       if (!currentUser) {
         notify("تم التحقق من البيانات لكن تعذر إنشاء جلسة دخول. أعد المحاولة.", "error");
         return;
       }
+
       notify("تم تسجيل الدخول بنجاح.", "success");
-      setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.partnership), 450);
+      setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
     } catch (error) {
       if (isRateLimitError(error)) {
-        const waitSeconds = extractRetryAfterSeconds(error) || 60;
-        notify(`يرجى الانتظار ${waitSeconds} ثانية قبل المحاولة التالية.`, "info");
+        notify("تعذر تسجيل الدخول الآن. حاول مرة أخرى.", "error");
         return;
       }
       registerLoginFailure();
@@ -820,11 +973,6 @@
       if (emailInput && !safeText(emailInput.value)) emailInput.value = prefillEmail;
     }
 
-    const reason = safeText(params.get("reason")).toLowerCase();
-    if (reason === "rate_limit") {
-      notify("تم تحويلك لتسجيل الدخول بسبب ضغط مؤقت في إنشاء الحساب.", "info");
-    }
-
     const current = await window.PartnerSession.refreshFromAuth();
     if (current) {
       const target = isDirectAccountEmail(current.email)
@@ -848,3 +996,4 @@
     if (resendTimer) clearInterval(resendTimer);
   });
 })();
+

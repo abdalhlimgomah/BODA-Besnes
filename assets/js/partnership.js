@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
 
   function safeText(value) {
@@ -6,15 +6,15 @@
   }
 
   function sanitizeField(value, maxLength = 200) {
-    if (window.BODASecurity?.sanitizeText) {
-      return window.BODASecurity.sanitizeText(value, maxLength);
+    if (window.BudaSecurity?.sanitizeText) {
+      return window.BudaSecurity.sanitizeText(value, maxLength);
     }
     return safeText(value).slice(0, maxLength);
   }
 
   function escapeHtml(value) {
-    return window.BODASecurity?.escapeHtml
-      ? window.BODASecurity.escapeHtml(value)
+    return window.BudaSecurity?.escapeHtml
+      ? window.BudaSecurity.escapeHtml(value)
       : safeText(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -24,8 +24,8 @@
   }
 
   function normalizeEmail(value) {
-    return window.BODASecurity?.normalizeEmail
-      ? window.BODASecurity.normalizeEmail(value)
+    return window.BudaSecurity?.normalizeEmail
+      ? window.BudaSecurity.normalizeEmail(value)
       : safeText(value).toLowerCase();
   }
 

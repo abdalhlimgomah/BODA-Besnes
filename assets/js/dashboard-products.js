@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
 
   const money = new Intl.NumberFormat("ar-EG", {
@@ -13,14 +13,34 @@
     products: [],
     currentUser: null,
   };
+  const PRODUCT_IMAGE_FIELD_IDS = ["productImage1", "productImage2", "productImage3", "productImage4", "productImage5"];
 
   function safeText(value) {
     return String(value || "").trim();
   }
 
+  function sanitizeTextInput(value, maxLength = 200) {
+    return window.BudaSecurity?.sanitizeText
+      ? window.BudaSecurity.sanitizeText(value, maxLength)
+      : safeText(value).slice(0, maxLength);
+  }
+
+  function sanitizeImageInput(value) {
+    // Do not truncate image URLs (especially data:image base64) to avoid
+    // generating malformed values that trigger ERR_INVALID_URL.
+    const raw = String(value ?? "")
+      .replace(/[\u0000-\u001F\u007F]/g, "")
+      .trim();
+    if (!raw) return "";
+    if (window.BudaSecurity?.sanitizeUrl) {
+      return window.BudaSecurity.sanitizeUrl(raw, { allowDataImages: true });
+    }
+    return raw.replace(/^javascript:/i, "");
+  }
+
   function escapeHtml(value) {
-    return window.BODASecurity?.escapeHtml
-      ? window.BODASecurity.escapeHtml(value)
+    return window.BudaSecurity?.escapeHtml
+      ? window.BudaSecurity.escapeHtml(value)
       : safeText(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -57,30 +77,41 @@
     button.textContent = isLoading ? loadingText : button.dataset.defaultText;
   }
 
+  function updatePrimaryImagePreview(rawUrl = "") {
+    const previewBox = document.getElementById("primaryImagePreviewBox");
+    const previewImage = document.getElementById("primaryImagePreview");
+    if (!previewBox || !previewImage) return;
+
+    const safeUrl = sanitizeImageInput(rawUrl);
+    if (!safeUrl) {
+      previewImage.removeAttribute("src");
+      previewBox.classList.add("hidden");
+      return;
+    }
+
+    previewImage.src = safeUrl;
+    previewBox.classList.remove("hidden");
+  }
+
   function getFormPayload() {
-    const imagesText = safeText(document.getElementById("productImages")?.value);
-    const sanitize = (value, maxLength = 200) =>
-      window.BODASecurity?.sanitizeText
-        ? window.BODASecurity.sanitizeText(value, maxLength)
-        : safeText(value).slice(0, maxLength);
+    const imagesFromFields = PRODUCT_IMAGE_FIELD_IDS
+      .map((id) => sanitizeImageInput(document.getElementById(id)?.value))
+      .filter(Boolean);
+    const legacyImagesText = safeText(document.getElementById("productImages")?.value);
+    const imagesFromLegacyText = legacyImagesText
+      .split(/[,\n;\|]+/g)
+      .map((item) => sanitizeImageInput(item))
+      .filter(Boolean);
+
     return {
-      name: sanitize(document.getElementById("productName")?.value, 200),
-      category: sanitize(document.getElementById("productCategory")?.value, 120),
-      description: sanitize(document.getElementById("productDescription")?.value, 1200),
+      name: sanitizeTextInput(document.getElementById("productName")?.value, 200),
+      category: sanitizeTextInput(document.getElementById("productCategory")?.value, 120),
+      description: sanitizeTextInput(document.getElementById("productDescription")?.value, 1200),
       price: toNumber(document.getElementById("productPrice")?.value),
       discountPercent: toNumber(document.getElementById("productDiscount")?.value),
       quantity: toNumber(document.getElementById("productQuantity")?.value),
-      phone: sanitize(document.getElementById("productPhone")?.value, 30),
-      images: imagesText
-        .split(/[,\n;\|]+/g)
-        .map((item) => {
-          const cleaned = sanitize(item, 1000);
-          if (window.BODASecurity?.sanitizeUrl) {
-            return window.BODASecurity.sanitizeUrl(cleaned, { allowDataImages: true });
-          }
-          return cleaned.replace(/^javascript:/i, "");
-        })
-        .filter(Boolean),
+      phone: sanitizeTextInput(document.getElementById("productPhone")?.value, 30),
+      images: imagesFromFields.length ? imagesFromFields : imagesFromLegacyText,
     };
   }
 
@@ -90,6 +121,7 @@
     }
     if (product.price <= 0) return "السعر يجب أن يكون أكبر من صفر.";
     if (product.quantity < 0) return "الكمية غير صحيحة.";
+    if (!Array.isArray(product.images) || !product.images.length) return "Please add a product image URL.";
     return "";
   }
 
@@ -98,6 +130,7 @@
     if (!form) return;
     form.reset();
     state.editingId = "";
+    updatePrimaryImagePreview("");
     const submitBtn = form.querySelector('button[type="submit"]');
     if (submitBtn) submitBtn.textContent = "إضافة المنتج";
     document.getElementById("cancelEditBtn")?.classList.add("hidden");
@@ -115,7 +148,17 @@
     document.getElementById("productDiscount").value = product.discountPercent ?? 0;
     document.getElementById("productQuantity").value = product.quantity ?? 0;
     document.getElementById("productPhone").value = product.phone || "";
-    document.getElementById("productImages").value = Array.isArray(product.images) ? product.images.join(", ") : "";
+    const images = Array.isArray(product.images) ? product.images : [];
+    document.getElementById("productImage1").value = images[0] || "";
+    document.getElementById("productImage2").value = images[1] || "";
+    document.getElementById("productImage3").value = images[2] || "";
+    document.getElementById("productImage4").value = images[3] || "";
+    document.getElementById("productImage5").value = images[4] || "";
+    updatePrimaryImagePreview(images[0] || "");
+    const legacyImagesInput = document.getElementById("productImages");
+    if (legacyImagesInput) {
+      legacyImagesInput.value = images.join(", ");
+    }
 
     const submitBtn = document.querySelector('#productForm button[type="submit"]');
     if (submitBtn) submitBtn.textContent = "حفظ التعديل";
@@ -125,8 +168,8 @@
 
   function getProductCardImage(product) {
     const raw = safeText(product.images?.[0] || "");
-    return window.BODASecurity?.sanitizeUrl
-      ? window.BODASecurity.sanitizeUrl(raw, { allowDataImages: true })
+    return window.BudaSecurity?.sanitizeUrl
+      ? window.BudaSecurity.sanitizeUrl(raw, { allowDataImages: true })
       : raw.replace(/^javascript:/i, "");
   }
 
@@ -218,7 +261,16 @@
       await loadProducts();
     } catch (error) {
       console.error("save product error", error);
-      notify("تعذر حفظ المنتج. تحقق من بنية الجدول في قاعدة البيانات.", "error");
+      if (String(error?.message || "") === "CLOUD_SYNC_REQUIRED") {
+        notify("تم حفظ المنتج محليًا فقط ولم يتم حفظه في قاعدة البيانات. سجل الدخول بحساب Supabase ثم أعد المحاولة.", "error");
+      } else {
+        const backendMessage = String(error?.message || "").trim();
+        if (backendMessage) {
+          notify(backendMessage, "error");
+        } else {
+          notify("تعذر حفظ المنتج. تحقق من بنية الجدول في قاعدة البيانات.", "error");
+        }
+      }
     } finally {
       setButtonLoading(submitBtn, "", false);
     }
@@ -262,11 +314,18 @@
     document.getElementById("productForm")?.addEventListener("submit", handleProductSubmit);
     document.getElementById("productsGrid")?.addEventListener("click", handleProductsGridClick);
     document.getElementById("cancelEditBtn")?.addEventListener("click", resetForm);
+    document.getElementById("productImage1")?.addEventListener("input", (event) => {
+      updatePrimaryImagePreview(event?.target?.value || "");
+    });
+    document.getElementById("primaryImagePreview")?.addEventListener("error", () => {
+      updatePrimaryImagePreview("");
+    });
     document.getElementById("logoutBtn")?.addEventListener("click", async () => {
       await window.PartnerSession.signOut();
       window.PartnerSession.goTo(window.APP_ROUTES.login);
     });
 
+    updatePrimaryImagePreview(document.getElementById("productImage1")?.value || "");
     await loadProducts();
   }
 

@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
 
   const SESSION_KEYS = Object.freeze({
@@ -11,8 +11,19 @@
   });
   const LOCAL_PARTNER_PROFILE_KEY = "local_partner_profile_v1";
   const LOCAL_DIRECT_ACCOUNT_KEY = "local_direct_account_v1";
-  const DIRECT_LOCAL_EMAIL = "admen788BOmen@gmail.com";
-  const DIRECT_LOCAL_USER_ID = "local-admen788";
+  const LOCAL_DIRECT_SIGNOUT_FLAG_KEY = "local_direct_signout_v1";
+  const DIRECT_LOCAL_ACCOUNTS = Object.freeze([
+    Object.freeze({
+      id: "local-boda-test",
+      name: "Buda_TEST_ACCOUNT",
+      email: "test.partner@boda.local",
+    }),
+    Object.freeze({
+      id: "local-admen788",
+      name: "admen788BOmen",
+      email: "admen788BOmen@gmail.com",
+    }),
+  ]);
 
   const runtime = {
     authListenerAttached: false,
@@ -28,8 +39,8 @@
   }
 
   function normalizeEmail(email) {
-    return window.BODASecurity?.normalizeEmail
-      ? window.BODASecurity.normalizeEmail(email)
+    return window.BudaSecurity?.normalizeEmail
+      ? window.BudaSecurity.normalizeEmail(email)
       : String(email || "").trim().toLowerCase();
   }
 
@@ -37,21 +48,42 @@
     return String(value || "").trim();
   }
 
+  function findDirectLocalAccountByEmail(email) {
+    const cleanEmail = normalizeEmail(email);
+    if (!cleanEmail) return null;
+    return DIRECT_LOCAL_ACCOUNTS.find((account) => normalizeEmail(account.email) === cleanEmail) || null;
+  }
+
   function isDirectLocalEmail(email) {
-    return normalizeEmail(email) === normalizeEmail(DIRECT_LOCAL_EMAIL);
+    return Boolean(findDirectLocalAccountByEmail(email));
+  }
+
+  function isDirectFallbackBlocked() {
+    return localStorage.getItem(LOCAL_DIRECT_SIGNOUT_FLAG_KEY) === "1";
+  }
+
+  function setDirectFallbackBlocked(blocked) {
+    if (blocked) {
+      localStorage.setItem(LOCAL_DIRECT_SIGNOUT_FLAG_KEY, "1");
+      return;
+    }
+    localStorage.removeItem(LOCAL_DIRECT_SIGNOUT_FLAG_KEY);
   }
 
   function getDirectLocalFallbackUser() {
+    if (isDirectFallbackBlocked()) return null;
+
     const row = readJSON(localStorage.getItem(LOCAL_DIRECT_ACCOUNT_KEY));
     if (!row || typeof row !== "object") return null;
 
     const email = normalizeEmail(row.email || "");
-    if (!email || !isDirectLocalEmail(email)) return null;
+    const account = findDirectLocalAccountByEmail(email);
+    if (!email || !account) return null;
 
     return {
-      id: safeText(row.id || DIRECT_LOCAL_USER_ID),
+      id: safeText(row.id || account.id || "local-direct"),
       email,
-      name: safeText(row.name || "admen788BOmen"),
+      name: safeText(row.name || account.name || "Local Test User"),
       phone: safeText(row.phone || ""),
       authSource: "local",
       loginTime: safeText(row.updatedAt || row.createdAt || new Date().toISOString()),
@@ -115,6 +147,11 @@
     localStorage.setItem(SESSION_KEYS.userPhone, normalized.phone);
     localStorage.setItem(SESSION_KEYS.authSource, normalized.authSource);
     localStorage.setItem("userId", normalized.id);
+
+    if (isDirectLocalEmail(normalized.email)) {
+      setDirectFallbackBlocked(false);
+    }
+
     return true;
   }
 
@@ -301,6 +338,7 @@
     } catch (error) {
       console.warn("sign out failed", error);
     } finally {
+      setDirectFallbackBlocked(true);
       clearSession();
     }
   }

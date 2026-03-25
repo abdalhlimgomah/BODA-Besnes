@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
 
   function safeText(value) {
@@ -6,8 +6,8 @@
   }
 
   function escapeHtml(value) {
-    return window.BODASecurity?.escapeHtml
-      ? window.BODASecurity.escapeHtml(value)
+    return window.BudaSecurity?.escapeHtml
+      ? window.BudaSecurity.escapeHtml(value)
       : safeText(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -89,11 +89,11 @@
       event.preventDefault();
 
       const submitBtn = event.currentTarget.querySelector('button[type="submit"]');
-      const name = window.BODASecurity?.sanitizeText
-        ? window.BODASecurity.sanitizeText(document.getElementById("accountName")?.value, 140)
+      const name = window.BudaSecurity?.sanitizeText
+        ? window.BudaSecurity.sanitizeText(document.getElementById("accountName")?.value, 140)
         : safeText(document.getElementById("accountName")?.value);
-      const phone = window.BODASecurity?.sanitizeText
-        ? window.BODASecurity.sanitizeText(document.getElementById("accountPhone")?.value, 30)
+      const phone = window.BudaSecurity?.sanitizeText
+        ? window.BudaSecurity.sanitizeText(document.getElementById("accountPhone")?.value, 30)
         : safeText(document.getElementById("accountPhone")?.value);
       const email = window.PartnerSession.getCurrentEmail();
 

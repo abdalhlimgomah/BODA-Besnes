@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
@@ -11,7 +11,7 @@
 <body>
   <header class="topbar">
     <div class="topbar-inner">
-      <strong class="brand-title">BODA Partner Portal</strong>
+      <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
         <span id="currentUserLabel" class="pill">-</span>
         <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
@@ -75,9 +75,38 @@
           <textarea id="productDescription" rows="3" required></textarea>
         </div>
 
+        <div class="field-grid">
+          <div class="field">
+            <label for="productImage1">رابط الصورة 1 (الصورة الرئيسية)</label>
+            <input id="productImage1" type="url" placeholder="https://example.com/1.jpg" />
+          </div>
+          <div class="field">
+            <label for="productImage2">رابط الصورة 2</label>
+            <input id="productImage2" type="url" placeholder="https://example.com/2.jpg" />
+          </div>
+        </div>
+
+        <div class="field-grid">
+          <div class="field">
+            <label for="productImage3">رابط الصورة 3</label>
+            <input id="productImage3" type="url" placeholder="https://example.com/3.jpg" />
+          </div>
+          <div class="field">
+            <label for="productImage4">رابط الصورة 4</label>
+            <input id="productImage4" type="url" placeholder="https://example.com/4.jpg" />
+          </div>
+        </div>
+
         <div class="field">
-          <label for="productImages">روابط الصور (افصل بفاصلة)</label>
-          <input id="productImages" type="text" placeholder="https://example.com/1.jpg, https://example.com/2.jpg" />
+          <label for="productImage5">رابط الصورة 5</label>
+          <input id="productImage5" type="url" placeholder="https://example.com/5.jpg" />
+        </div>
+
+        <div id="primaryImagePreviewBox" class="product-preview hidden" aria-live="polite">
+          <small class="muted">معاينة الصورة الرئيسية</small>
+          <div class="product-media">
+            <img id="primaryImagePreview" alt="معاينة الصورة الرئيسية للمنتج" loading="lazy" />
+          </div>
         </div>
 
         <div class="inline-actions">
@@ -97,10 +126,16 @@
 
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260309-3"></script>
-  <script src="../assets/js/security-utils.js?v=20260309-3"></script>
-  <script src="../assets/js/supabase-service.js?v=20260309-3"></script>
-  <script src="../assets/js/session.js?v=20260309-3"></script>
-  <script src="../assets/js/dashboard-products.js?v=20260309-3"></script>
+  <script src="../assets/js/security-utils.js?v=20260324-4"></script>
+  <script src="../assets/js/supabase-service.js?v=20260325-2"></script>
+  <script src="../assets/js/session.js?v=20260324-2"></script>
+  <script src="../assets/js/dashboard-products.js?v=20260325-1"></script>
 </body>
 </html>
+
+
+
+
+
+
 

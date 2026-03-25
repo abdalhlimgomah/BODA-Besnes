@@ -1,4 +1,4 @@
-﻿(() => {
+(() => {
   "use strict";
 
   const state = {
@@ -18,8 +18,8 @@
   }
 
   function escapeHtml(value) {
-    return window.BODASecurity?.escapeHtml
-      ? window.BODASecurity.escapeHtml(value)
+    return window.BudaSecurity?.escapeHtml
+      ? window.BudaSecurity.escapeHtml(value)
       : safeText(value)
           .replaceAll("&", "&amp;")
           .replaceAll("<", "&lt;")
@@ -186,7 +186,8 @@
 
     select.disabled = true;
     try {
-      await window.PartnerAPI.updateOrderStatus(orderId, nextStatus);
+      const updated = await window.PartnerAPI.updateOrderStatus(orderId, nextStatus);
+      if (!updated) throw new Error("ORDER_NOT_UPDATED");
       const target = state.all.find((order) => String(order.id) === String(orderId));
       if (target) target.status = nextStatus;
       renderStats();
@@ -219,4 +220,3 @@
 
   document.addEventListener("DOMContentLoaded", initOrdersPage);
 })();
-

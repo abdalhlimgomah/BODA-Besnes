@@ -5,27 +5,53 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-  <title>بوابة الشريك</title>
+  <title>تسجيل الدخول - بوابة الشريك</title>
   <link rel="stylesheet" href="assets/css/app.css" />
 </head>
-<body>
-  <div class="auth-shell">
-    <article class="auth-card">
-      <a class="auth-brand" href="#">BODA Partner Portal</a>
-      <h1 class="auth-title">جارٍ تجهيز بوابة الشريك</h1>
-      <p class="auth-subtitle">يتم الآن فحص حالة تسجيل الدخول وتحويلك تلقائيًا.</p>
-      <p id="auth-status" class="status-note info">انتظر لحظات...</p>
-    </article>
-  </div>
+<body data-page="login">
+  <main class="auth-shell">
+    <section class="auth-card auth-card-login">
+      <a class="auth-brand" href="index.html">Buda Partner Portal</a>
+      <span class="auth-kicker">دخول الشركاء المعتمدين</span>
+      <h1 class="auth-title">تسجيل الدخول</h1>
+      <p class="auth-subtitle">ادخل حسابك للوصول إلى لوحة الشريك وإدارة المنتجات والطلبات.</p>
+      <p id="auth-status" class="status-note hidden" aria-live="polite"></p>
+
+      <form id="loginForm" class="portal-form">
+        <div class="field">
+          <label for="loginEmail">البريد الإلكتروني</label>
+          <input id="loginEmail" type="email" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="loginPassword">كلمة المرور</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn-primary">دخول</button>
+      </form>
+
+      <section class="login-benefits" aria-label="مزايا لوحة الشريك">
+        <article class="login-benefit">
+          <strong>إدارة كاملة للمنتجات</strong>
+          <small>أضف وعدّل منتجاتك بسهولة مع صور متعددة.</small>
+        </article>
+        <article class="login-benefit">
+          <strong>تتبع الطلبات لحظيًا</strong>
+          <small>تابع حالات الطلبات من المراجعة وحتى التسليم.</small>
+        </article>
+      </section>
+
+      <div class="auth-links auth-links-login">
+        <span>ليس لديك حساب؟</span>
+        <a href="auth/signup.html">إنشاء حساب جديد</a>
+      </div>
+    </section>
+  </main>
 
   <script src="js/supabase.js"></script>
   <script src="assets/js/config.js?v=20260309-3"></script>
-  <script src="assets/js/security-utils.js?v=20260309-3"></script>
-  <script src="assets/js/supabase-service.js?v=20260309-3"></script>
-  <script src="assets/js/session.js?v=20260309-3"></script>
-  <script src="assets/js/index-boot.js?v=20260309-3"></script>
+  <script src="assets/js/security-utils.js?v=20260324-4"></script>
+  <script src="assets/js/supabase-service.js?v=20260325-2"></script>
+  <script src="assets/js/session.js?v=20260324-2"></script>
+  <script src="assets/js/auth.js?v=20260325-1"></script>
 </body>
 </html>
-
-
-
