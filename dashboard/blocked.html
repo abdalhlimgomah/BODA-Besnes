@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <title>تم رفض الطلب - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+</head>
+<body class="blocked-page">
+  <main class="blocked-wrap">
+    <section class="blocked-card" role="alert" aria-live="assertive">
+      <img src="../assets/img/partner-rejected.svg" alt="تم رفض طلب الشراكة" class="blocked-illustration" />
+      <h1>تم رفض طلب الشراكة</h1>
+      <p>
+        حسابك موقوف مؤقتًا لأن طلب الشراكة تم رفضه. لا يمكنك استخدام لوحة الشريك أو إضافة
+        منتجات حتى يتم قبول طلب جديد.
+      </p>
+      <button id="blockedLogoutBtn" type="button" class="btn-danger blocked-logout-btn">تسجيل الخروج</button>
+    </section>
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260326-1"></script>
+  <script src="../assets/js/security-utils.js?v=20260324-4"></script>
+  <script src="../assets/js/supabase-service.js?v=20260327-3"></script>
+  <script src="../assets/js/session.js?v=20260327-2"></script>
+  <script src="../assets/js/dashboard-blocked.js?v=20260326-1"></script>
+</body>
+</html>
+

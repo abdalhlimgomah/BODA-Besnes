@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const PRODUCT_TABLE_CANDIDATES = ["products", "my_products", "partner_products", "seller_products", "product"];
@@ -16,7 +16,7 @@
     "products_requests",
     "merchant_products_requests",
   ];
-  const PRODUCT_ID_COLUMNS = ["id", "product_id"];
+  const PRODUCT_ID_COLUMNS = ["id", "product_id", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"];
   const PRODUCT_OWNER_ID_COLUMNS = ["owner_id", "user_id", "seller_id"];
   const PRODUCT_OWNER_EMAIL_COLUMNS = ["owner_email", "seller_email", "email", "user_email"];
   const ORDER_TABLE_CANDIDATES = ["orders", "partner_orders", "seller_orders", "merchant_orders", "shop_orders", "orders_requests", "order"];
@@ -25,6 +25,7 @@
   const ORDER_OWNER_ID_COLUMNS = ["seller_id", "owner_id", "partner_id", "merchant_id", "vendor_id", "store_owner_id", "user_id"];
   const ORDER_OWNER_EMAIL_COLUMNS = ["seller_email", "owner_email", "partner_email", "merchant_email", "vendor_email", "seller_mail", "owner_mail", "customer_email", "user_email", "email"];
   const ORDER_ITEM_ORDER_ID_COLUMNS = ["order_id", "orderid", "parent_order_id", "id_order"];
+  const ORDER_ITEM_PRODUCT_ID_COLUMNS = ["product_id", "item_id", "id_product", "productid", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid", "id"];
   const ORDER_ITEM_NAME_COLUMNS = ["product_name", "product_title", "name", "title", "item_name"];
   const ORDER_ITEM_QTY_COLUMNS = ["quantity", "quantity_ordered", "qty", "count"];
   const ORDER_ITEM_PRICE_COLUMNS = ["price", "item_price", "price_each", "amount", "unit_price"];
@@ -876,8 +877,10 @@
       const { error } = await client.from(table).select("*").limit(1);
       if (!error) {
         available.push(table);
-        break;
+        continue;
       }
+      if (isMissingTableError(error)) continue;
+      if (isAuthPermissionError(error)) continue;
     }
 
     if (!available.length) {
@@ -1570,16 +1573,36 @@
     }, owner);
   }
 
+  function normalizeProductReviewStatus(value, fallbackStatus = "") {
+    const primary = safeText(value).toLowerCase().replace(/\s+/g, "_");
+    const secondary = safeText(fallbackStatus).toLowerCase().replace(/\s+/g, "_");
+    const probe = primary || secondary;
+    if (!probe) return "pending";
+    if (probe.includes("reviewed") || probe.includes("approved") || probe.includes("published") || probe.includes("قبول")) {
+      return "reviewed";
+    }
+    if (probe.includes("rejected") || probe.includes("رفض")) return "rejected";
+    if (probe.includes("pending") || probe.includes("draft") || probe.includes("review") || probe.includes("قيد") || probe.includes("مراج")) {
+      return "pending";
+    }
+    return "pending";
+  }
+
   function normalizeProduct(row, sourceTable) {
     const images = collectImages(row);
     const price = toNumber(pickFirst(row, ["price", "current_price", "amount"], 0));
     const discountPercent = toNumber(pickFirst(row, ["discount_percent", "discount"], 0));
     const quantity = toNumber(pickFirst(row, ["quantity", "stock"], 0));
+    const reviewStatus = normalizeProductReviewStatus(
+      pickFirst(row, ["review_status", "reviewStatus"], ""),
+      pickFirst(row, ["status", "product_status"], "")
+    );
 
     return {
       id: String(pickFirst(row, ["id", "product_id"], "")),
       sourceTable,
       ownerId: String(pickFirst(row, ["owner_id", "user_id", "seller_id"], "")),
+      legacyMyProductId: safeText(pickFirst(row, ["legacy_my_products_id", "legacy_product_id", "my_product_id"], "")),
       name: safeText(pickFirst(row, ["product_name", "name", "title"], "")),
       price,
       discountPercent,
@@ -1589,6 +1612,8 @@
       category: safeText(pickFirst(row, ["category", "store_category"], "")),
       email: normalizeEmail(pickFirst(row, ["owner_email", "seller_email", "email", "user_email"], "")),
       phone: safeText(pickFirst(row, ["phone", "owner_phone"], "")),
+      reviewStatus,
+      publicationStatus: safeText(pickFirst(row, ["status", "product_status"], "")),
       images,
       createdAt: pickFirst(row, ["created_at", "createdAt"], ""),
       updatedAt: pickFirst(row, ["updated_at", "updatedAt"], ""),
@@ -1627,6 +1652,71 @@
     return rowEmails.includes(ownerEmail);
   }
 
+  function productMergeKey(product = {}) {
+    const legacy = safeText(product.legacyMyProductId);
+    if (legacy) return `legacy:${legacy}`;
+
+    const id = safeText(product.id);
+    const email = normalizeEmail(product.email || "");
+    if (id && email) return `id-email:${id}|${email}`;
+    if (id) return `id:${id}`;
+
+    const name = safeText(product.name).toLowerCase();
+    if (name && email) return `name-email:${name}|${email}`;
+    return `${Math.random().toString(16).slice(2)}:${Date.now()}`;
+  }
+
+  function hasMeaningfulValue(value) {
+    if (value === null || typeof value === "undefined") return false;
+    if (typeof value === "string") return safeText(value).length > 0;
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "number") return Number.isFinite(value);
+    if (typeof value === "object") return Object.keys(value).length > 0;
+    return true;
+  }
+
+  function productReviewStatusRank(value) {
+    const key = normalizeProductReviewStatus(value);
+    if (key === "reviewed") return 3;
+    if (key === "pending") return 2;
+    if (key === "rejected") return 1;
+    return 0;
+  }
+
+  function mergeProductRecords(base, incoming) {
+    if (!base) return incoming;
+    if (!incoming) return base;
+
+    const merged = { ...base };
+    Object.entries(incoming).forEach(([key, value]) => {
+      if (key === "raw") {
+        if (hasMeaningfulValue(value)) merged.raw = value;
+        return;
+      }
+      if (hasMeaningfulValue(value) || !hasMeaningfulValue(merged[key])) {
+        merged[key] = value;
+      }
+    });
+
+    if (productReviewStatusRank(incoming.reviewStatus) > productReviewStatusRank(base.reviewStatus)) {
+      merged.reviewStatus = normalizeProductReviewStatus(incoming.reviewStatus);
+    } else {
+      merged.reviewStatus = normalizeProductReviewStatus(base.reviewStatus);
+    }
+
+    const baseUpdated = Date.parse(base.updatedAt || base.createdAt || "") || 0;
+    const incomingUpdated = Date.parse(incoming.updatedAt || incoming.createdAt || "") || 0;
+    if (incomingUpdated >= baseUpdated) {
+      merged.updatedAt = incoming.updatedAt || incoming.createdAt || merged.updatedAt;
+      merged.createdAt = incoming.createdAt || merged.createdAt;
+    } else {
+      merged.updatedAt = base.updatedAt || base.createdAt || merged.updatedAt;
+      merged.createdAt = base.createdAt || merged.createdAt;
+    }
+
+    return merged;
+  }
+
   function pickLatestPartnerRow(rows = []) {
     const list = Array.isArray(rows) ? rows.slice() : [];
     if (!list.length) return null;
@@ -1647,6 +1737,13 @@
     });
 
     return list[0] || null;
+  }
+
+  function shouldLookupPartnerByOwnerId(value = "") {
+    const clean = safeText(value);
+    if (!clean) return false;
+    // Supabase auth ids are UUIDs. Skip local numeric/string ids to avoid 400 type mismatch queries.
+    return isUuidLike(clean);
   }
 
   function normalizeOwnerIdForInsert(value = "") {
@@ -1859,6 +1956,7 @@
 
   async function insertProduct(product, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
+    await assertPartnerApprovedForProductMutations(owner);
     if (isLocalOwner(owner)) {
       let synced = false;
       try {
@@ -2163,6 +2261,7 @@
 
   async function updateProduct(productId, product, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
+    await assertPartnerApprovedForProductMutations(owner);
     if (isLocalOwner(owner)) {
       const id = safeText(productId);
       const rows = readLocalProducts();
@@ -2209,6 +2308,7 @@
 
   async function deleteProduct(productId, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
+    await assertPartnerApprovedForProductMutations(owner);
     if (isLocalOwner(owner)) {
       const id = safeText(productId);
       const rows = readLocalProducts();
@@ -2288,50 +2388,94 @@
     if (!owner.id && !owner.email) return [];
 
     const tables = await resolveAvailableProductTables();
+    const reviewTable = await resolveReviewProductTable(tables[0] || "");
+    const allTables = Array.from(new Set([...tables, reviewTable].filter(Boolean)));
     const client = getClient();
-    const out = [];
+    const mergedMap = new Map();
 
-    for (const table of tables) {
-      let data = null;
-      let error = null;
+    for (const table of allTables) {
+      const collectedRows = [];
+      let lastError = null;
+      let matchedQuery = false;
 
       const queries = [];
       if (owner.id) {
-        queries.push(() => client.from(table).select("*").eq("owner_id", owner.id));
+        PRODUCT_OWNER_ID_COLUMNS.forEach((column) => {
+          queries.push(() => client.from(table).select("*").eq(column, owner.id));
+        });
       }
       if (owner.email) {
-        queries.push(() => client.from(table).select("*").eq("owner_email", owner.email));
-        queries.push(() => client.from(table).select("*").eq("email", owner.email));
+        PRODUCT_OWNER_EMAIL_COLUMNS.forEach((column) => {
+          queries.push(() => client.from(table).select("*").eq(column, owner.email));
+        });
       }
 
       for (const run of queries) {
         const result = await run();
         if (!result.error) {
-          data = result.data;
-          error = null;
-          break;
+          matchedQuery = true;
+          if (Array.isArray(result.data) && result.data.length) {
+            collectedRows.push(...result.data);
+          }
+          continue;
         }
-        error = result.error;
-        if (!isMissingColumnError(error)) break;
+        const error = result.error;
+        lastError = error;
+        if (isMissingColumnError(error) || isTypeMismatchError(error) || isAuthPermissionError(error)) continue;
       }
 
-      // Fall back to selecting all and filtering client-side when columns are missing.
-      if (error && isMissingColumnError(error)) {
+      if (!matchedQuery) {
         const result = await client.from(table).select("*");
         if (!result.error) {
-          data = result.data;
-          error = null;
+          if (Array.isArray(result.data) && result.data.length) {
+            collectedRows.push(...result.data);
+          }
+        } else {
+          const error = result.error;
+          lastError = error;
+          if (!isMissingColumnError(error) && !isTypeMismatchError(error) && !isAuthPermissionError(error)) {
+            console.warn("getProductsForOwner fallback failed", {
+              table,
+              status: Number(error?.status || 0) || undefined,
+              code: safeText(error?.code || ""),
+              message: safeText(error?.message || ""),
+            });
+          }
         }
       }
 
-      if (error) continue;
+      if (!collectedRows.length) {
+        if (lastError && !isMissingColumnError(lastError) && !isTypeMismatchError(lastError) && !isAuthPermissionError(lastError)) {
+          console.warn("getProductsForOwner query failed", {
+            table,
+            status: Number(lastError?.status || 0) || undefined,
+            code: safeText(lastError?.code || ""),
+            message: safeText(lastError?.message || ""),
+          });
+        }
+        continue;
+      }
 
-      const rows = Array.isArray(data) ? data : [];
-      rows
+      const dedupRows = [];
+      const seenRowKeys = new Set();
+      collectedRows.forEach((row) => {
+        const key = JSON.stringify(row || {});
+        if (!key || seenRowKeys.has(key)) return;
+        seenRowKeys.add(key);
+        dedupRows.push(row);
+      });
+
+      dedupRows
         .filter((row) => rowBelongsToOwner(row, owner))
-        .forEach((row) => out.push(normalizeProduct(row, table)));
+        .forEach((row) => {
+          const normalized = normalizeProduct(row, table);
+          const key = productMergeKey(normalized);
+          const existing = mergedMap.get(key);
+          mergedMap.set(key, mergeProductRecords(existing, normalized));
+        });
     }
 
+    const out = Array.from(mergedMap.values());
     out.sort((a, b) => {
       const dateA = Date.parse(a.updatedAt || a.createdAt || "") || 0;
       const dateB = Date.parse(b.updatedAt || b.createdAt || "") || 0;
@@ -2353,25 +2497,22 @@
     if (!owner.id && !owner.email) return { exists: false, row: null };
 
     const localRow = readStorageJSON(LOCAL_KEYS.partner, null);
-    if (localRow && owner.email) {
+    if (localRow) {
+      const ownerEmail = normalizeEmail(owner.email || "");
       const rowEmail = normalizeEmail(localRow.owner_email || localRow.email || "");
-      if (rowEmail && rowEmail === normalizeEmail(owner.email)) {
+      if (ownerEmail && rowEmail && rowEmail === ownerEmail) {
         return { exists: true, row: localRow };
+      }
+
+      const ownerId = safeText(owner.id);
+      if (ownerId) {
+        const rowOwnerIds = PARTNER_OWNER_ID_COLUMNS.map((key) => safeText(localRow[key])).filter(Boolean);
+        if (rowOwnerIds.includes(ownerId)) return { exists: true, row: localRow };
       }
     }
 
     const client = getClient();
     const attempts = [];
-
-    if (owner.id) {
-      attempts.push(() =>
-        client
-          .from("partners_requests")
-          .select("*")
-          .eq("owner_id", owner.id)
-          .limit(50)
-      );
-    }
 
     if (owner.email) {
       attempts.push(() =>
@@ -2390,28 +2531,32 @@
       );
     }
 
+    if (shouldLookupPartnerByOwnerId(owner.id)) {
+      attempts.push(() =>
+        client
+          .from("partners_requests")
+          .select("*")
+          .eq("owner_id", owner.id)
+          .limit(50)
+      );
+    }
+
     let lastError = null;
-    const matchedRows = [];
     for (const run of attempts) {
       const { data, error } = await run();
       if (!error) {
         const rows = Array.isArray(data) ? data : [];
-        rows
-          .filter((row) => rowBelongsToPartnerOwner(row, owner))
-          .forEach((row) => matchedRows.push(row));
+        const filtered = rows.filter((row) => rowBelongsToPartnerOwner(row, owner));
+        const row = pickLatestPartnerRow(filtered);
+        if (row) {
+          writeStorageJSON(LOCAL_KEYS.partner, row);
+          return { exists: true, row };
+        }
         continue;
       }
       lastError = error;
       if (isMissingColumnError(error) || isTypeMismatchError(error) || isAuthPermissionError(error)) continue;
       if (isMissingTableError(error)) return { exists: false, row: null };
-    }
-
-    if (matchedRows.length) {
-      const row = pickLatestPartnerRow(matchedRows);
-      if (row) {
-        writeStorageJSON(LOCAL_KEYS.partner, row);
-        return { exists: true, row };
-      }
     }
 
     const fallback = await client.from("partners_requests").select("*").limit(1000);
@@ -2438,6 +2583,38 @@
       });
     }
     return { exists: false, row: null };
+  }
+
+  function normalizePartnerRequestStatus(value) {
+    const key = safeText(value).toLowerCase().replace(/\s+/g, "_");
+    if (!key) return "pending";
+    if (key.includes("approved") || key.includes("قبول")) return "approved";
+    if (key.includes("rejected") || key.includes("رفض")) return "rejected";
+    if (key.includes("in_progress") || key.includes("under_review") || key.includes("processing") || key.includes("تنفيذ")) {
+      return "in_progress";
+    }
+    if (key.includes("pending") || key.includes("قيد")) return "pending";
+    return key;
+  }
+
+  async function assertPartnerApprovedForProductMutations(ownerInput = null) {
+    const owner = await resolveOwnerContext(ownerInput);
+    if (!owner?.id && !owner?.email) {
+      throw new Error("Authenticated owner is required.");
+    }
+
+    const partner = await hasPartnerProfile(owner);
+    if (!partner.exists || !partner.row) {
+      throw new Error("PARTNER_PROFILE_REQUIRED");
+    }
+
+    const normalizedStatus = normalizePartnerRequestStatus(partner.row.status || "pending");
+    if (normalizedStatus === "rejected") {
+      throw new Error("PARTNER_REQUEST_REJECTED");
+    }
+    if (normalizedStatus !== "approved") {
+      throw new Error("PARTNER_NOT_APPROVED");
+    }
   }
 
   async function trySyncLocalPartnerToCloud(payload, owner) {
@@ -2741,29 +2918,272 @@
     return keys.some((key) => known.has(String(key || "").toLowerCase()));
   }
 
+  function chunkArray(values = [], size = 200) {
+    const out = [];
+    const list = Array.isArray(values) ? values : [];
+    const chunkSize = Math.max(1, toNumber(size) || 1);
+    for (let i = 0; i < list.length; i += chunkSize) {
+      out.push(list.slice(i, i + chunkSize));
+    }
+    return out;
+  }
+
+  function normalizeOrderForMerge(order = {}) {
+    const items = dedupeOrderItems(Array.isArray(order.items) ? order.items : []);
+    const computedTotal = toNumber(order.total) || items.reduce((sum, item) => sum + toNumber(item.lineTotal), 0);
+    return {
+      id: safeText(order.id),
+      status: normalizeOrderStatus(order.status),
+      createdAt: safeText(order.createdAt),
+      customerName: safeText(order.customerName),
+      customerEmail: normalizeEmail(order.customerEmail),
+      customerPhone: safeText(order.customerPhone),
+      address: safeText(order.address),
+      total: computedTotal,
+      items,
+    };
+  }
+
+  function mergeNormalizedOrderRecords(base = null, incoming = null) {
+    if (!base && !incoming) return null;
+    if (!base) return normalizeOrderForMerge(incoming || {});
+    if (!incoming) return normalizeOrderForMerge(base || {});
+
+    const left = normalizeOrderForMerge(base);
+    const right = normalizeOrderForMerge(incoming);
+    const mergedItems = dedupeOrderItems([...(left.items || []), ...(right.items || [])]);
+    const mergedStatus =
+      normalizeOrderStatus(right.status) !== "pending"
+        ? normalizeOrderStatus(right.status)
+        : normalizeOrderStatus(left.status || right.status);
+
+    return {
+      id: safeText(left.id || right.id),
+      status: mergedStatus || "pending",
+      createdAt: safeText(right.createdAt || left.createdAt),
+      customerName: safeText(right.customerName || left.customerName),
+      customerEmail: normalizeEmail(right.customerEmail || left.customerEmail),
+      customerPhone: safeText(right.customerPhone || left.customerPhone),
+      address: safeText(right.address || left.address),
+      total: toNumber(right.total) || toNumber(left.total) || mergedItems.reduce((sum, item) => sum + toNumber(item.lineTotal), 0),
+      items: mergedItems,
+    };
+  }
+
+  function mergeNormalizedOrderLists(...lists) {
+    const grouped = new Map();
+
+    lists.forEach((rows) => {
+      (Array.isArray(rows) ? rows : []).forEach((row) => {
+        const normalized = normalizeOrderForMerge(row || {});
+        if (!normalized.id) return;
+        const existing = grouped.get(normalized.id) || null;
+        grouped.set(normalized.id, mergeNormalizedOrderRecords(existing, normalized));
+      });
+    });
+
+    return sortNormalizedOrders(
+      [...grouped.values()].map((row) => normalizeOrderForMerge(row))
+    );
+  }
+
+  async function collectOwnedProductIds(ownerCandidates = {}, productIds = []) {
+    const list = [...new Set((Array.isArray(productIds) ? productIds : []).map((value) => safeText(value)).filter(Boolean))];
+    if (!list.length) return new Set();
+
+    const client = getClient();
+    let productTables = [];
+    try {
+      productTables = await resolveAvailableProductTables();
+    } catch {
+      productTables = [];
+    }
+    if (!productTables.length) return new Set();
+
+    const owned = new Set();
+
+    for (const table of productTables) {
+      const rows = [];
+      const seenRows = new Set();
+      const chunks = chunkArray(list, 150);
+      const idColumns = Array.from(new Set(PRODUCT_ID_COLUMNS));
+      let hasQueryableIdColumn = false;
+
+      for (const chunk of chunks) {
+        for (const idColumn of idColumns) {
+          const { data, error } = await client.from(table).select("*").in(idColumn, chunk);
+          if (error) {
+            if (isAuthPermissionError(error)) {
+              hasQueryableIdColumn = false;
+              break;
+            }
+            if (isMissingColumnError(error) || isTypeMismatchError(error)) {
+              continue;
+            }
+            continue;
+          }
+
+          hasQueryableIdColumn = true;
+          (Array.isArray(data) ? data : []).forEach((row) => {
+            const rowKey = safeText(pickFirst(row, PRODUCT_ID_COLUMNS, ""));
+            if (rowKey && seenRows.has(rowKey)) return;
+            if (rowKey) seenRows.add(rowKey);
+            rows.push(row);
+          });
+        }
+      }
+
+      if (!hasQueryableIdColumn || !rows.length) {
+        const fallback = await client.from(table).select("*").limit(4000);
+        if (fallback.error) {
+          if (isAuthPermissionError(fallback.error)) continue;
+          continue;
+        }
+        const fallbackRows = Array.isArray(fallback.data) ? fallback.data : [];
+        fallbackRows
+          .filter((row) => PRODUCT_ID_COLUMNS.some((column) => list.includes(safeText(row?.[column]))))
+          .forEach((row) => rows.push(row));
+      }
+
+      rows.forEach((row) => {
+        if (!rowBelongsToOrderOwner(row, ownerCandidates)) return;
+        PRODUCT_ID_COLUMNS.forEach((column) => {
+          const productId = safeText(row?.[column]);
+          if (productId && list.includes(productId)) {
+            owned.add(productId);
+          }
+        });
+      });
+    }
+
+    return owned;
+  }
+
+  async function getPartnerOrdersFromLinkedItems(ownerCandidates = {}) {
+    const client = getClient();
+    const orderItemTables = await resolveAvailableOrderItemTables();
+    if (!orderItemTables.length) return [];
+
+    const rawRows = [];
+    const productIds = new Set();
+
+    for (const table of orderItemTables) {
+      const { data, error } = await client.from(table).select("*").limit(4000);
+      if (error) {
+        if (isAuthPermissionError(error)) continue;
+        continue;
+      }
+
+      const rows = Array.isArray(data) ? data : [];
+      rows.forEach((row) => {
+        const orderId = safeText(pickFirst(row, [...ORDER_ITEM_ORDER_ID_COLUMNS, ...ORDER_ID_COLUMNS], ""));
+        if (!orderId) return;
+        const productId = safeText(
+          pickFirst(row, ["product_id", "item_id", "id_product", "productid", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], "")
+        );
+        if (productId) productIds.add(productId);
+        rawRows.push({
+          orderId,
+          productId,
+          row,
+          ownerMatched: rowBelongsToOrderOwner(row, ownerCandidates),
+        });
+      });
+    }
+
+    if (!rawRows.length) return [];
+
+    const ownedProductIds = await collectOwnedProductIds(ownerCandidates, [...productIds]);
+    const grouped = new Map();
+
+    rawRows.forEach((entry) => {
+      if (!entry.ownerMatched && !ownedProductIds.has(entry.productId)) return;
+
+      let target = grouped.get(entry.orderId);
+      if (!target) {
+        target = normalizeOrderBaseRecord(entry.row, entry.orderId);
+        grouped.set(entry.orderId, target);
+      }
+
+      const item = normalizeOrderItem(
+        {
+          product_id:
+            entry.productId ||
+            pickFirst(entry.row, ["product_id", "item_id", "id", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], ""),
+          product_name: pickFirst(entry.row, ORDER_ITEM_NAME_COLUMNS, "منتج"),
+          quantity: pickFirst(entry.row, ORDER_ITEM_QTY_COLUMNS, 1),
+          price: pickFirst(entry.row, ORDER_ITEM_PRICE_COLUMNS, 0),
+        },
+        entry.row
+      );
+
+      target.items.push(item);
+      if (!target.total) {
+        target.total = toNumber(pickFirst(entry.row, ["total", "total_price", "amount"], 0));
+      }
+    });
+
+    if (!grouped.size) return [];
+
+    const ids = [...grouped.keys()];
+    const idSet = new Set(ids);
+    const orderTables = await resolveAvailableOrderTables();
+
+    for (const table of orderTables) {
+      const mergedRows = [];
+      const seenRows = new Set();
+
+      for (const idColumn of ORDER_ID_COLUMNS) {
+        for (const chunk of chunkArray(ids, 150)) {
+          const { data, error } = await client.from(table).select("*").in(idColumn, chunk);
+          if (error) {
+            if (isAuthPermissionError(error)) break;
+            if (isMissingColumnError(error) || isTypeMismatchError(error)) continue;
+            continue;
+          }
+
+          (Array.isArray(data) ? data : []).forEach((row) => {
+            const rowId = safeText(pickFirst(row, ORDER_ID_COLUMNS, ""));
+            if (!rowId || !idSet.has(rowId) || seenRows.has(rowId)) return;
+            seenRows.add(rowId);
+            mergedRows.push(row);
+          });
+        }
+      }
+
+      if (!mergedRows.length) continue;
+
+      mergedRows.forEach((row) => {
+        const rowId = safeText(pickFirst(row, ORDER_ID_COLUMNS, ""));
+        if (!rowId || !grouped.has(rowId)) return;
+
+        const current = grouped.get(rowId);
+        const base = normalizeOrderBaseRecord(row, rowId);
+        base.items = Array.isArray(current.items) ? current.items.slice() : [];
+        grouped.set(rowId, mergeNormalizedOrderRecords(current, base));
+      });
+    }
+
+    return sortNormalizedOrders(
+      [...grouped.values()].map((order) => normalizeOrderForMerge(order))
+    );
+  }
+
   async function getPartnerOrdersFromTables(ownerCandidates = {}) {
     const client = getClient();
     const orderTables = await resolveAvailableOrderTables();
-    if (!orderTables.length) return [];
 
     const directRows = [];
     for (const table of orderTables) {
       const { data, error } = await client.from(table).select("*").limit(1000);
       if (error) {
-        if (isAuthPermissionError(error)) throw error;
+        if (isAuthPermissionError(error)) continue;
         continue;
       }
 
       const rows = Array.isArray(data) ? data : [];
       const filtered = rows.filter((row) => rowBelongsToOrderOwner(row, ownerCandidates));
       filtered.forEach((row) => directRows.push(row));
-
-      if (!filtered.length && rows.length) {
-        const hasOwnerColumns = rows.some((row) => hasAnyKnownOwnerColumn(row));
-        if (!hasOwnerColumns) {
-          rows.forEach((row) => directRows.push(row));
-        }
-      }
     }
 
     const normalized = normalizeRpcOrders(directRows);
@@ -2787,7 +3207,7 @@
     for (const table of orderItemTables) {
       const { data, error } = await client.from(table).select("*").limit(2000);
       if (error) {
-        if (isAuthPermissionError(error)) throw error;
+        if (isAuthPermissionError(error)) continue;
         continue;
       }
 
@@ -2827,7 +3247,7 @@
         }
 
         const item = normalizeOrderItem({
-          product_id: pickFirst(row, ["product_id", "item_id", "id"], ""),
+          product_id: pickFirst(row, ["product_id", "item_id", "id", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], ""),
           product_name: pickFirst(row, ORDER_ITEM_NAME_COLUMNS, "منتج"),
           quantity: pickFirst(row, ORDER_ITEM_QTY_COLUMNS, 1),
           price: pickFirst(row, ORDER_ITEM_PRICE_COLUMNS, 0),
@@ -2848,7 +3268,8 @@
       };
     });
 
-    return sortNormalizedOrders(out);
+    const linkedOrders = await getPartnerOrdersFromLinkedItems(ownerCandidates);
+    return mergeNormalizedOrderLists(out, linkedOrders);
   }
 
   async function updateOrderStatusDirect(orderId, status, ownerCandidates = {}) {

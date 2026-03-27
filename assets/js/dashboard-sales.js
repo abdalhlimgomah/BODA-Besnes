@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const INVOICE_RATE = 0.05;

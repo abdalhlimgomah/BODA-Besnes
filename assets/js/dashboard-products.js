@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const money = new Intl.NumberFormat("ar-EG", {
@@ -11,6 +11,8 @@
   const state = {
     products: [],
     currentUser: null,
+    partnerAccess: null,
+    productActionsAllowed: true,
   };
 
   function safeText(value) {
@@ -48,6 +50,23 @@
   function toNumber(value) {
     const num = Number(value);
     return Number.isFinite(num) ? num : 0;
+  }
+
+  function normalizeReviewStatus(value) {
+    const key = safeText(value).toLowerCase().replace(/\s+/g, "_");
+    if (!key) return "pending";
+    if (key.includes("reviewed") || key.includes("approved") || key.includes("published") || key.includes("قبول")) {
+      return "reviewed";
+    }
+    if (key.includes("rejected") || key.includes("رفض")) return "rejected";
+    return "pending";
+  }
+
+  function reviewStatusLabel(value) {
+    const key = normalizeReviewStatus(value);
+    if (key === "reviewed") return "تمت المراجعة";
+    if (key === "rejected") return "مرفوض";
+    return "قيد المراجعة";
   }
 
   function notify(message, type = "error") {
@@ -120,18 +139,69 @@
     return sanitizeImageInput(product.images?.[0] || "");
   }
 
+  function applyPartnerAccess(access) {
+    if (!access?.exists) {
+      state.productActionsAllowed = false;
+      notify("لا يمكنك إدارة المنتجات قبل إرسال طلب الشراكة.", "info");
+      return false;
+    }
+
+    if (access.normalizedStatus === "rejected") {
+      state.productActionsAllowed = false;
+      window.PartnerSession.goTo(window.APP_ROUTES.dashboardBlocked);
+      return false;
+    }
+
+    if (access.normalizedStatus !== "approved") {
+      state.productActionsAllowed = false;
+      notify("لا يمكنك إضافة أو تعديل أو حذف المنتجات إلا بعد قبول طلب الشراكة.", "info");
+      return false;
+    }
+
+    state.productActionsAllowed = true;
+    return true;
+  }
+
+  async function ensureProductActionsAllowed(forceFresh = false) {
+    if (!window.PartnerSession?.getPartnerAccess || !state.currentUser) return true;
+    const access = await window.PartnerSession.getPartnerAccess(state.currentUser, { forceFresh });
+    state.partnerAccess = access;
+    return applyPartnerAccess(access);
+  }
+
+  function updateAddButtonsState() {
+    document.querySelectorAll(".add-product-btn").forEach((link) => {
+      const isAllowed = state.productActionsAllowed;
+      link.classList.toggle("is-disabled-link", !isAllowed);
+      if (!isAllowed) {
+        link.setAttribute("aria-disabled", "true");
+        link.dataset.disabled = "1";
+      } else {
+        link.removeAttribute("aria-disabled");
+        delete link.dataset.disabled;
+      }
+    });
+  }
+
   function renderProducts() {
     const holder = document.getElementById("productsGrid");
     if (!holder) return;
 
+    updateAddButtonsState();
+
     if (!state.products.length) {
+      const actionNode = state.productActionsAllowed
+        ? '<a class="btn-primary add-product-btn" href="product-editor.html">إضافة منتج جديد</a>'
+        : '<p class="muted">إضافة المنتجات متاحة بعد قبول طلب الشراكة.</p>';
+
       holder.innerHTML = `
         <article class="catalog-empty">
           <h3>لا توجد منتجات مضافة حتى الآن</h3>
           <p class="muted">ابدأ بإضافة أول منتج وسيظهر هنا بشكل احترافي.</p>
-          <a class="btn-primary add-product-btn" href="product-editor.html">إضافة منتج جديد</a>
+          ${actionNode}
         </article>
       `;
+      updateAddButtonsState();
       return;
     }
 
@@ -142,12 +212,20 @@
         const finalPrice = hasDiscount
           ? product.price - (product.price * product.discountPercent) / 100
           : product.price;
+        const reviewStatusText = reviewStatusLabel(product.reviewStatus || product.review_status || product.publicationStatus || "");
         const safeId = encodeURIComponent(String(product.id || ""));
         const safeName = escapeHtml(product.name || "منتج بدون اسم");
         const safeCategory = escapeHtml(product.category || "غير مصنف");
         const safeQty = escapeHtml(toNumber(product.quantity));
         const safeDescription = escapeHtml(sanitizeTextInput(product.description || "", 180));
         const safeImage = escapeHtml(image);
+
+        const actions = state.productActionsAllowed
+          ? `
+              <a class="btn-secondary product-edit-link" href="product-editor.html?id=${safeId}">تعديل</a>
+              <button class="btn-danger" data-delete="${escapeHtml(product.id)}" type="button">حذف</button>
+            `
+          : '<span class="muted">الإضافة والتعديل والحذف متاحة بعد قبول الطلب.</span>';
 
         return `
           <article class="catalog-product-card" data-product-id="${escapeHtml(product.id)}">
@@ -157,7 +235,10 @@
             <div class="catalog-product-body">
               <div class="catalog-product-head">
                 <h3>${safeName}</h3>
-                <span class="pill">${safeCategory}</span>
+                <div class="inline-actions">
+                  <span class="pill">${safeCategory}</span>
+                  <span class="pill">${escapeHtml(reviewStatusText)}</span>
+                </div>
               </div>
               <p class="muted catalog-product-description">${safeDescription || "لا يوجد وصف لهذا المنتج."}</p>
               <div class="catalog-price-line">
@@ -166,14 +247,15 @@
               </div>
               <small class="muted">الكمية المتاحة: ${safeQty}</small>
               <div class="inline-actions catalog-actions">
-                <a class="btn-secondary" href="product-editor.html?id=${safeId}">تعديل</a>
-                <button class="btn-danger" data-delete="${escapeHtml(product.id)}" type="button">حذف</button>
+                ${actions}
               </div>
             </div>
           </article>
         `;
       })
       .join("");
+
+    updateAddButtonsState();
   }
 
   async function loadProducts() {
@@ -189,8 +271,30 @@
   }
 
   async function handleProductsGridClick(event) {
+    const disabledAddLink = event.target.closest(".add-product-btn[data-disabled='1']");
+    if (disabledAddLink) {
+      event.preventDefault();
+      notify("لا يمكنك إضافة المنتجات إلا بعد قبول طلب الشراكة.", "info");
+      return;
+    }
+
+    const editLink = event.target.closest(".product-edit-link");
+    if (editLink && !state.productActionsAllowed) {
+      event.preventDefault();
+      notify("لا يمكنك تعديل المنتجات إلا بعد قبول طلب الشراكة.", "info");
+      return;
+    }
+
     const deleteBtn = event.target.closest("[data-delete]");
     if (!deleteBtn) return;
+
+    if (!state.productActionsAllowed) {
+      notify("لا يمكنك حذف المنتجات إلا بعد قبول طلب الشراكة.", "info");
+      return;
+    }
+
+    const canManageProducts = await ensureProductActionsAllowed(true);
+    if (!canManageProducts) return;
 
     const productId = deleteBtn.getAttribute("data-delete");
     if (!productId) return;
@@ -204,7 +308,14 @@
       await loadProducts();
     } catch (error) {
       console.error("delete product error", error);
-      notify("تعذر حذف المنتج.", "error");
+      const errorCode = String(error?.message || "");
+      if (errorCode === "PARTNER_REQUEST_REJECTED") {
+        window.PartnerSession.goTo(window.APP_ROUTES.dashboardBlocked);
+      } else if (errorCode === "PARTNER_NOT_APPROVED") {
+        notify("لا يمكنك حذف المنتجات إلا بعد قبول طلب الشراكة.", "error");
+      } else {
+        notify("تعذر حذف المنتج.", "error");
+      }
     }
   }
 
@@ -219,7 +330,9 @@
       notify,
     });
 
-    document.getElementById("productsGrid")?.addEventListener("click", handleProductsGridClick);
+    await ensureProductActionsAllowed(true);
+
+    document.addEventListener("click", handleProductsGridClick);
     await loadProducts();
   }
 

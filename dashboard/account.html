@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>الحساب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-4" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
 </head>
 <body>
   <header class="topbar">
@@ -14,15 +14,15 @@
       <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
         <div id="userMenuRoot" class="user-menu">
-          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة الحساب" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة المستخدم" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
             <span id="userAvatarInitial" class="avatar-fallback">?</span>
-            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة الحساب" loading="lazy" />
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة المستخدم" loading="lazy" />
           </button>
           <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
             <div class="user-menu-header">
               <div class="avatar-preview">
                 <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
-                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الحساب الكبيرة" loading="lazy" />
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الملف الشخصي" loading="lazy" />
               </div>
               <p id="userMenuEmail" class="user-menu-email">-</p>
             </div>
@@ -35,7 +35,7 @@
         </div>
       </div>
       <nav class="tabs-nav">
-        <a data-nav="product-editor" href="product-editor.html">إدارة المنتج</a>
+        <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
         <a data-nav="products" href="products.html">المنتجات</a>
         <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
@@ -48,18 +48,18 @@
     <section class="section-card account-hero">
       <div class="account-hero-grid">
         <div class="account-hero-copy">
-          <h2>لوحة الحساب</h2>
-          <p>عدّل بياناتك بسرعة، وتابع حالة ملف الشراكة من نفس الصفحة.</p>
+          <h2>إعدادات الحساب</h2>
+          <p>حدّث بيانات حسابك وتابع حالة طلب الشراكة من نفس المكان.</p>
           <div class="account-hero-pills">
-            <span class="account-pill">إدارة أسهل</span>
-            <span class="account-pill">تحديث مباشر</span>
-            <span class="account-pill">واجهة أوضح</span>
+            <span class="account-pill">تحديث فوري</span>
+            <span class="account-pill">حماية الحساب</span>
+            <span class="account-pill">بيانات دقيقة</span>
           </div>
         </div>
         <div class="account-hero-notice">
-          <small>معلومة</small>
-          <strong>البريد الإلكتروني ثابت لأنه مربوط بتسجيل الدخول.</strong>
-          <p>يمكنك تغيير الاسم والهاتف في أي وقت.</p>
+          <small>تنبيه</small>
+          <strong>البريد الإلكتروني مرتبط بحسابك الحالي ولا يمكن تغييره من هنا.</strong>
+          <p>يمكنك تغيير باقي البيانات في أي وقت.</p>
         </div>
       </div>
     </section>
@@ -68,7 +68,7 @@
 
     <section class="section-card account-panel">
       <div class="section-head">
-        <h3>بيانات الحساب الأساسية</h3>
+        <h3>البيانات الشخصية الأساسية</h3>
         <span class="account-panel-kicker">Profile</span>
       </div>
       <form id="accountForm" class="portal-form">
@@ -86,13 +86,13 @@
           <label for="accountEmail">البريد الإلكتروني</label>
           <input id="accountEmail" type="email" readonly />
         </div>
-        <button type="submit" class="btn-primary">حفظ التعديلات</button>
+        <button type="submit" class="btn-primary">حفظ التغييرات</button>
       </form>
     </section>
 
     <section class="section-card account-panel">
       <div class="section-head">
-        <h3>ملخص بيانات الشراكة</h3>
+        <h3>ملخص طلب الشراكة</h3>
         <span class="account-panel-kicker">Partner</span>
       </div>
       <div id="partnerSummary"></div>
@@ -100,14 +100,18 @@
   </main>
 
   <script src="../js/supabase.js"></script>
-  <script src="../assets/js/config.js?v=20260325-4"></script>
+  <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260325-5"></script>
-  <script src="../assets/js/session.js?v=20260325-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260327-3"></script>
+  <script src="../assets/js/session.js?v=20260327-2"></script>
   <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
-  <script src="../assets/js/dashboard-account.js?v=20260325-2"></script>
+  <script src="../assets/js/dashboard-account.js?v=20260326-2"></script>
 </body>
 </html>
+
+
+
+
 
 
 

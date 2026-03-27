@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const AVATAR_MAX_SIDE = 560;

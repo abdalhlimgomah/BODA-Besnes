@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>إدارة الطلبات - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-4" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
 </head>
 <body>
   <header class="topbar">
@@ -14,15 +14,15 @@
       <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
         <div id="userMenuRoot" class="user-menu">
-          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة الحساب" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة المستخدم" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
             <span id="userAvatarInitial" class="avatar-fallback">?</span>
-            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة الحساب" loading="lazy" />
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة المستخدم" loading="lazy" />
           </button>
           <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
             <div class="user-menu-header">
               <div class="avatar-preview">
                 <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
-                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الحساب الكبيرة" loading="lazy" />
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الملف الشخصي" loading="lazy" />
               </div>
               <p id="userMenuEmail" class="user-menu-email">-</p>
             </div>
@@ -35,7 +35,7 @@
         </div>
       </div>
       <nav class="tabs-nav">
-        <a data-nav="product-editor" href="product-editor.html">إدارة المنتج</a>
+        <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
         <a data-nav="products" href="products.html">المنتجات</a>
         <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
@@ -47,7 +47,7 @@
   <main class="page-wrap stack">
     <section class="section-card">
       <div class="section-head">
-        <h2>طلبات منتجاتي</h2>
+        <h2>إدارة الطلبات</h2>
       </div>
       <div class="stats-grid">
         <article class="stat-tile">
@@ -55,7 +55,7 @@
           <strong id="ordersTotal">0</strong>
         </article>
         <article class="stat-tile">
-          <small>الطلبات النشطة</small>
+          <small>طلبات نشطة</small>
           <strong id="ordersActive">0</strong>
         </article>
         <article class="stat-tile">
@@ -75,7 +75,7 @@
       <div class="filter-row">
         <button class="chip active" data-filter="all" type="button">كل الطلبات</button>
         <button class="chip" data-filter="pending" type="button">قيد المراجعة</button>
-        <button class="chip" data-filter="preparing" type="button">جاري التجهيز</button>
+        <button class="chip" data-filter="preparing" type="button">تحت التنفيذ</button>
         <button class="chip" data-filter="shipped" type="button">تم الشحن</button>
         <button class="chip" data-filter="delivered" type="button">تم التسليم</button>
       </div>
@@ -87,14 +87,17 @@
   </main>
 
   <script src="../js/supabase.js"></script>
-  <script src="../assets/js/config.js?v=20260325-4"></script>
+  <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260325-5"></script>
-  <script src="../assets/js/session.js?v=20260325-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260327-3"></script>
+  <script src="../assets/js/session.js?v=20260327-2"></script>
   <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
-  <script src="../assets/js/dashboard-orders.js?v=20260325-3"></script>
+  <script src="../assets/js/dashboard-orders.js?v=20260327-1"></script>
 </body>
 </html>
+
+
+
 
 
 

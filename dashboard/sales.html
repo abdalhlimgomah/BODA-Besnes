@@ -6,7 +6,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>المبيعات - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260325-4" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
 </head>
 <body>
   <header class="topbar">
@@ -14,15 +14,15 @@
       <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
         <div id="userMenuRoot" class="user-menu">
-          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة الحساب" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة المستخدم" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
             <span id="userAvatarInitial" class="avatar-fallback">?</span>
-            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة الحساب" loading="lazy" />
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة المستخدم" loading="lazy" />
           </button>
           <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
             <div class="user-menu-header">
               <div class="avatar-preview">
                 <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
-                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الحساب الكبيرة" loading="lazy" />
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الملف الشخصي" loading="lazy" />
               </div>
               <p id="userMenuEmail" class="user-menu-email">-</p>
             </div>
@@ -35,7 +35,7 @@
         </div>
       </div>
       <nav class="tabs-nav">
-        <a data-nav="product-editor" href="product-editor.html">إدارة المنتج</a>
+        <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
         <a data-nav="products" href="products.html">المنتجات</a>
         <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
@@ -47,29 +47,29 @@
   <main class="page-wrap stack sales-page">
     <section class="section-card sales-hero">
       <div class="section-head">
-        <h2>حاسبة المبيعات</h2>
-        <span class="pill">الوضع الافتراضي: الطلبات المسلّمة</span>
+        <h2>ملخص المبيعات</h2>
+        <span class="pill">طريقة الحساب: العمولة والضريبة</span>
       </div>
-      <p class="muted">تحليل مباشر لمبيعاتك، رسوم الفواتير، والضريبة التي يدفعها العميل.</p>
+      <p class="muted">تابع أداء المبيعات اليومية واحسب صافي المستحقات قبل سحب الأرباح.</p>
       <div class="sales-kpi-grid">
         <article class="sales-kpi-card">
-          <small>أيام البيع</small>
+          <small>عدد الأيام</small>
           <strong id="salesDaysCount">0</strong>
         </article>
         <article class="sales-kpi-card">
-          <small>صافي مبيعات المنتجات</small>
+          <small>إجمالي المبيعات</small>
           <strong id="salesRevenueTotal">0</strong>
         </article>
         <article class="sales-kpi-card">
-          <small>رسوم الفواتير (5%)</small>
+          <small>رسوم المنصة (5%)</small>
           <strong id="salesInvoiceFeeTotal">0</strong>
         </article>
         <article class="sales-kpi-card">
-          <small>الضريبة الثابتة (12 ج/وحدة)</small>
+          <small>الضريبة المضافة (12 ج/طلب)</small>
           <strong id="salesTaxTotal">0</strong>
         </article>
         <article class="sales-kpi-card">
-          <small>المبلغ النهائي المدفوع من العميل</small>
+          <small>المبلغ المتوقع تحصيله من العميل</small>
           <strong id="salesCustomerPayTotal">0</strong>
         </article>
       </div>
@@ -79,37 +79,41 @@
 
     <section class="section-card">
       <div class="section-head">
-        <h3>فلترة العرض</h3>
+        <h3>الفترة الزمنية</h3>
       </div>
       <div class="filter-row">
         <button class="chip active" data-days="7" type="button">آخر 7 أيام</button>
         <button class="chip" data-days="30" type="button">آخر 30 يوم</button>
         <button class="chip" data-days="90" type="button">آخر 90 يوم</button>
-        <button class="chip" data-days="0" type="button">كل المدة</button>
+        <button class="chip" data-days="0" type="button">كل الفترات</button>
       </div>
     </section>
 
     <section class="section-card">
       <div class="section-head">
-        <h3>المنتجات المباعة</h3>
+        <h3>الطلبات المشمولة</h3>
       </div>
       <div id="salesRowsList" class="sales-rows"></div>
     </section>
 
     <section class="section-card">
       <div class="section-head">
-        <h3>تفصيل الفواتير</h3>
+        <h3>فواتير الشريك</h3>
       </div>
       <div id="salesInvoiceList" class="sales-invoice-list"></div>
     </section>
   </main>
 
   <script src="../js/supabase.js"></script>
-  <script src="../assets/js/config.js?v=20260325-4"></script>
+  <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260325-5"></script>
-  <script src="../assets/js/session.js?v=20260325-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260327-3"></script>
+  <script src="../assets/js/session.js?v=20260327-2"></script>
   <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
   <script src="../assets/js/dashboard-sales.js?v=20260325-1"></script>
 </body>
 </html>
+
+
+
+

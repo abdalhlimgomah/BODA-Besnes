@@ -1,5 +1,9 @@
-(() => {
+﻿(() => {
   "use strict";
+
+  const PARTNER_CACHE_KEY = "local_partner_profile_v1";
+  const PARTNER_SUMMARY_REFRESH_MS = 8000;
+  let partnerSummaryTimer = null;
 
   function safeText(value) {
     return String(value || "").trim();
@@ -32,18 +36,43 @@
   }
 
   function formatPartnerStatus(value) {
-    const key = safeText(value).toLowerCase();
-    if (!key) return "قيد المراجعة";
-    if (key.includes("pending") || key.includes("مراج")) return "قيد المراجعة";
-    if (key.includes("approved") || key.includes("قبول")) return "مقبول";
-    if (key.includes("rejected") || key.includes("رفض")) return "مرفوض";
-    return safeText(value);
+    const raw = safeText(value);
+    const key = raw.toLowerCase().replace(/\s+/g, "_");
+
+    if (!key) return "قيد الانتظار";
+
+    if (key.includes("in_progress") || key.includes("under_review") || key.includes("processing")) {
+      return "تحت التنفيذ";
+    }
+    if (key.includes("pending")) return "قيد الانتظار";
+    if (key.includes("approved")) return "تم القبول";
+    if (key.includes("rejected")) return "مرفوض";
+
+    if (key.includes("تنفيذ")) return "تحت التنفيذ";
+    if (key.includes("قيد")) return "قيد الانتظار";
+    if (key.includes("قبول")) return "تم القبول";
+    if (key.includes("رفض")) return "مرفوض";
+
+    return raw;
   }
 
-  async function fillPartnerSummary() {
+  function clearPartnerCache() {
+    try {
+      localStorage.removeItem(PARTNER_CACHE_KEY);
+    } catch {
+      // Ignore storage read/write failures.
+    }
+  }
+
+  async function fillPartnerSummary(options = {}) {
+    const { forceFresh = false } = options;
     const email = window.PartnerSession.getCurrentEmail();
     const holder = document.getElementById("partnerSummary");
     if (!holder) return;
+
+    if (forceFresh) {
+      clearPartnerCache();
+    }
 
     try {
       const partner = await window.PartnerAPI.hasPartnerProfile(email);
@@ -79,6 +108,23 @@
     }
   }
 
+  function startPartnerSummaryRefresh() {
+    if (partnerSummaryTimer) {
+      window.clearInterval(partnerSummaryTimer);
+      partnerSummaryTimer = null;
+    }
+
+    partnerSummaryTimer = window.setInterval(() => {
+      fillPartnerSummary({ forceFresh: true });
+    }, PARTNER_SUMMARY_REFRESH_MS);
+  }
+
+  function stopPartnerSummaryRefresh() {
+    if (!partnerSummaryTimer) return;
+    window.clearInterval(partnerSummaryTimer);
+    partnerSummaryTimer = null;
+  }
+
   async function initAccountPage() {
     const user = await window.PartnerSession.requireAuth({ requirePartner: true });
     if (!user) return;
@@ -88,6 +134,7 @@
       user,
       notify,
     });
+
     document.getElementById("accountName").value = safeText(user.name);
     document.getElementById("accountEmail").value = safeText(user.email);
     document.getElementById("accountPhone").value = safeText(user.phone);
@@ -102,7 +149,6 @@
       const phone = window.BudaSecurity?.sanitizeText
         ? window.BudaSecurity.sanitizeText(document.getElementById("accountPhone")?.value, 30)
         : safeText(document.getElementById("accountPhone")?.value);
-      const email = window.PartnerSession.getCurrentEmail();
 
       if (!name) {
         notify("الاسم مطلوب.", "error");
@@ -122,7 +168,22 @@
       }
     });
 
-    await fillPartnerSummary();
+    await fillPartnerSummary({ forceFresh: true });
+    startPartnerSummaryRefresh();
+
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        fillPartnerSummary({ forceFresh: true });
+      }
+    });
+
+    window.addEventListener(
+      "beforeunload",
+      () => {
+        stopPartnerSummaryRefresh();
+      },
+      { once: true }
+    );
   }
 
   document.addEventListener("DOMContentLoaded", initAccountPage);

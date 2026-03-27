@@ -27,6 +27,7 @@
     dashboardSales: "dashboard/sales.html",
     dashboardOrders: "dashboard/orders.html",
     dashboardAccount: "dashboard/account.html",
+    dashboardBlocked: "dashboard/blocked.html",
   });
 
   function resolvePortalPath(path) {

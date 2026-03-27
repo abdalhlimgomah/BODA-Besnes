@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const PRODUCT_IMAGE_FIELD_IDS = ["productImage1", "productImage2", "productImage3", "productImage4", "productImage5"];
@@ -7,6 +7,8 @@
     editingId: "",
     products: [],
     currentUser: null,
+    partnerAccess: null,
+    productActionsAllowed: true,
   };
 
   function safeText(value) {
@@ -71,6 +73,56 @@
     if (!button.dataset.defaultText) button.dataset.defaultText = button.textContent || "";
     button.disabled = Boolean(isLoading);
     button.textContent = isLoading ? loadingText : button.dataset.defaultText;
+  }
+
+  function disableEditorForm(message) {
+    const form = document.getElementById("productForm");
+    const cancelLink = document.getElementById("cancelEditLink");
+    const submitBtn = document.getElementById("submitProductBtn");
+
+    if (form) {
+      form.querySelectorAll("input, textarea, select, button").forEach((field) => {
+        field.disabled = true;
+      });
+    }
+    if (cancelLink) {
+      cancelLink.classList.add("hidden");
+    }
+    if (submitBtn) {
+      submitBtn.textContent = "مغلق";
+    }
+
+    notify(message, "info");
+  }
+
+  function applyPartnerAccess(access) {
+    if (!access?.exists) {
+      state.productActionsAllowed = false;
+      disableEditorForm("لا يمكنك إدارة المنتجات قبل إرسال طلب الشراكة.");
+      return false;
+    }
+
+    if (access.normalizedStatus === "rejected") {
+      state.productActionsAllowed = false;
+      window.PartnerSession.goTo(window.APP_ROUTES.dashboardBlocked);
+      return false;
+    }
+
+    if (access.normalizedStatus !== "approved") {
+      state.productActionsAllowed = false;
+      disableEditorForm("لا يمكنك إضافة أو تعديل المنتجات إلا بعد قبول طلب الشراكة.");
+      return false;
+    }
+
+    state.productActionsAllowed = true;
+    return true;
+  }
+
+  async function ensureProductActionsAllowed(forceFresh = false) {
+    if (!window.PartnerSession?.getPartnerAccess || !state.currentUser) return true;
+    const access = await window.PartnerSession.getPartnerAccess(state.currentUser, { forceFresh });
+    state.partnerAccess = access;
+    return applyPartnerAccess(access);
   }
 
   function readImageValues() {
@@ -221,7 +273,14 @@
     event.preventDefault();
     clearNotify();
 
-    const form = event.currentTarget;
+    const canManageProducts = await ensureProductActionsAllowed(true);
+    if (!canManageProducts) return;
+
+    const form = event.currentTarget || document.getElementById("productForm");
+    if (!form) {
+      notify("تعذر قراءة نموذج المنتج. أعد تحميل الصفحة ثم حاول مرة أخرى.", "error");
+      return;
+    }
     const submitBtn = form.querySelector('button[type="submit"]');
     const payload = getFormPayload();
     const validationError = validateProduct(payload);
@@ -245,8 +304,16 @@
       }
     } catch (error) {
       console.error("save product error", error);
-      if (String(error?.message || "") === "CLOUD_SYNC_REQUIRED") {
-        notify("تم حفظ المنتج محليًا فقط ولم يتم حفظه في قاعدة البيانات. سجّل الدخول بحساب Supabase ثم أعد المحاولة.", "error");
+      const errorCode = String(error?.message || "");
+
+      if (errorCode === "PARTNER_REQUEST_REJECTED") {
+        window.PartnerSession.goTo(window.APP_ROUTES.dashboardBlocked);
+      } else if (errorCode === "PARTNER_NOT_APPROVED") {
+        notify("لا يمكنك إضافة أو تعديل المنتجات إلا بعد قبول طلب الشراكة.", "error");
+      } else if (errorCode === "PARTNER_PROFILE_REQUIRED") {
+        notify("يجب إكمال طلب الشراكة أولًا قبل إدارة المنتجات.", "error");
+      } else if (errorCode === "CLOUD_SYNC_REQUIRED") {
+        notify("تم حفظ المنتج محليًا فقط ولم يتم حفظه في قاعدة البيانات. سجل الدخول بحساب Supabase ثم أعد المحاولة.", "error");
       } else {
         const backendMessage = safeText(error?.message || "");
         notify(backendMessage || "تعذر حفظ المنتج.", "error");
@@ -280,6 +347,13 @@
       user,
       notify,
     });
+
+    const canManageProducts = await ensureProductActionsAllowed(true);
+    if (!canManageProducts) {
+      bindImagePreviewEvents();
+      updateExtraImagePreview();
+      return;
+    }
 
     document.getElementById("productForm")?.addEventListener("submit", handleProductSubmit);
     bindImagePreviewEvents();

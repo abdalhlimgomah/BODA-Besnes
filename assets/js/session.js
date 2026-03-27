@@ -1,4 +1,4 @@
-(() => {
+﻿(() => {
   "use strict";
 
   const SESSION_KEYS = Object.freeze({
@@ -194,6 +194,56 @@
     return Boolean(rowEmail && rowEmail === normalizeEmail(email));
   }
 
+  function normalizePartnerRequestStatus(value) {
+    const key = safeText(value).toLowerCase().replace(/\s+/g, "_");
+    if (!key) return "pending";
+    if (key.includes("approved") || key.includes("قبول")) return "approved";
+    if (key.includes("rejected") || key.includes("رفض")) return "rejected";
+    if (key.includes("in_progress") || key.includes("under_review") || key.includes("processing") || key.includes("تنفيذ")) {
+      return "in_progress";
+    }
+    if (key.includes("pending") || key.includes("قيد")) return "pending";
+    return key;
+  }
+
+  async function getPartnerAccess(ownerInput = null, options = {}) {
+    const forceFresh = Boolean(options.forceFresh);
+    const owner = ownerInput || getCurrentUser();
+    if (!owner) return { exists: false, row: null, rawStatus: "", normalizedStatus: "none" };
+
+    try {
+      if (forceFresh) {
+        // Keep local cache as fallback when network checks fail.
+      }
+      const profile = await window.PartnerAPI?.hasPartnerProfile?.(owner);
+      const row = profile?.row || null;
+      const exists = Boolean(profile?.exists && row);
+      const rawStatus = safeText(row?.status || "");
+      const normalizedStatus = exists ? normalizePartnerRequestStatus(rawStatus) : "none";
+      return { exists, row, rawStatus, normalizedStatus };
+    } catch (error) {
+      console.warn("partner access check failed", error);
+      const cachedRow = readJSON(localStorage.getItem(LOCAL_PARTNER_PROFILE_KEY));
+      if (cachedRow) {
+        const ownerEmail = normalizeEmail(owner?.email || "");
+        const rowEmail = normalizeEmail(cachedRow.owner_email || cachedRow.email || "");
+        const ownerId = safeText(owner?.id || "");
+        const rowOwnerId = safeText(
+          cachedRow.owner_id || cachedRow.user_id || cachedRow.seller_id || cachedRow.partner_id || cachedRow.merchant_id || cachedRow.id_user || ""
+        );
+        const matchesOwner =
+          (ownerEmail && rowEmail && ownerEmail === rowEmail) ||
+          (ownerId && rowOwnerId && ownerId === rowOwnerId);
+        if (matchesOwner) {
+          const rawStatus = safeText(cachedRow.status || "");
+          const normalizedStatus = normalizePartnerRequestStatus(rawStatus || "pending");
+          return { exists: true, row: cachedRow, rawStatus, normalizedStatus };
+        }
+      }
+      return { exists: false, row: null, rawStatus: "", normalizedStatus: "none" };
+    }
+  }
+
   function isRecentLogin(user, maxAgeMs = 2 * 60 * 1000) {
     const stamp = Date.parse(safeText(user?.loginTime || ""));
     if (!stamp) return false;
@@ -312,17 +362,24 @@
       return;
     }
 
-    if (isDirectLocalEmail(user.email)) {
+    const partnerAccess = await getPartnerAccess(user, { forceFresh: true });
+    if (partnerAccess.exists && partnerAccess.normalizedStatus === "rejected") {
+      goTo(window.APP_ROUTES.dashboardBlocked);
+      return;
+    }
+
+    if (partnerAccess.exists) {
       goTo(window.APP_ROUTES.dashboardProducts);
       return;
     }
 
-    // Requested flow: login -> partnership page first.
+    // Default flow for accounts without a submitted partner request.
     goTo(window.APP_ROUTES.partnership);
   }
 
   async function requireAuth(options = {}) {
     const requirePartner = Boolean(options.requirePartner);
+    const allowRejected = Boolean(options.allowRejected);
     const fallbackRoute = options.fallbackRoute || window.APP_ROUTES.login;
 
     const currentPath = String(window.location.pathname || "").split("/").pop() || "";
@@ -335,29 +392,16 @@
 
     if (!requirePartner) return user;
 
-    if (isLocalAuthUser(user)) {
-      if (isDirectLocalEmail(user.email)) return user;
-      if (hasLocalPartnerProfile(user.email)) return user;
-
-      try {
-        const cloudPartner = await window.PartnerAPI.hasPartnerProfile(user);
-        if (cloudPartner.exists) return user;
-      } catch (error) {
-        console.warn("cloud partner check for local user failed", error);
-      }
-
+    const partnerAccess = await getPartnerAccess(user, { forceFresh: true });
+    if (!partnerAccess.exists) {
       goTo(window.APP_ROUTES.partnership);
       return null;
     }
 
-    try {
-      const partner = await window.PartnerAPI.hasPartnerProfile(user);
-      if (!partner.exists) {
-        goTo(window.APP_ROUTES.partnership);
-        return null;
+    if (partnerAccess.normalizedStatus === "rejected" && !allowRejected) {
+      if (currentPath !== "blocked.html") {
+        goTo(window.APP_ROUTES.dashboardBlocked);
       }
-    } catch {
-      goTo(window.APP_ROUTES.partnership);
       return null;
     }
 
@@ -419,6 +463,8 @@
     setCurrentUser,
     clearSession,
     refreshFromAuth,
+    getPartnerAccess,
+    normalizePartnerRequestStatus,
     signOut,
     goTo,
     redirectAfterAuth,
