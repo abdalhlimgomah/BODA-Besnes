@@ -2722,12 +2722,98 @@
     throw lastError || new Error("Failed to save partner request");
   }
 
+  function parseLooseJson(value) {
+    const text = safeText(value);
+    if (!text) return null;
+    try {
+      return JSON.parse(text);
+    } catch {
+      return null;
+    }
+  }
+
+  function pickOrderItemProductId(row = {}) {
+    const specificColumns = ORDER_ITEM_PRODUCT_ID_COLUMNS.filter((column) => column !== "id");
+    const specific = safeText(pickFirst(row, specificColumns, ""));
+    if (specific) return specific;
+
+    const fallbackId = safeText(row?.id);
+    if (!fallbackId) return "";
+
+    const hasItemContext =
+      ORDER_ITEM_NAME_COLUMNS.some((column) => safeText(row?.[column])) ||
+      ORDER_ITEM_QTY_COLUMNS.some((column) => safeText(row?.[column])) ||
+      ORDER_ITEM_PRICE_COLUMNS.some((column) => safeText(row?.[column]));
+
+    return hasItemContext ? fallbackId : "";
+  }
+
+  function collectOrderItemCandidates(row = {}) {
+    if (!row || typeof row !== "object") return [];
+
+    const candidates = [];
+    const sourceValues = [
+      row.items,
+      row.order_items,
+      row.orderItems,
+      row.products,
+      row.order_products,
+      row.orderProducts,
+      row.order_details,
+      row.orderDetails,
+      row.details,
+    ];
+
+    sourceValues.forEach((value) => {
+      if (Array.isArray(value)) {
+        value.forEach((entry) => {
+          if (entry && typeof entry === "object") candidates.push(entry);
+        });
+        return;
+      }
+
+      if (value && typeof value === "object") {
+        candidates.push(value);
+        return;
+      }
+
+      if (typeof value === "string") {
+        const parsed = parseLooseJson(value);
+        if (!parsed) return;
+        if (Array.isArray(parsed)) {
+          parsed.forEach((entry) => {
+            if (entry && typeof entry === "object") candidates.push(entry);
+          });
+          return;
+        }
+        if (parsed && typeof parsed === "object") {
+          candidates.push(parsed);
+        }
+      }
+    });
+
+    return candidates;
+  }
+
+  function extractOrderRowProductIds(row = {}) {
+    const ids = new Set();
+    const directId = pickOrderItemProductId(row);
+    if (directId) ids.add(directId);
+
+    collectOrderItemCandidates(row).forEach((item) => {
+      const nestedId = pickOrderItemProductId(item);
+      if (nestedId) ids.add(nestedId);
+    });
+
+    return [...ids];
+  }
+
   function normalizeOrderItem(item, fallbackRow = null) {
-    const quantity = toNumber(pickFirst(item, ["quantity", "qty"], pickFirst(fallbackRow, ["quantity", "qty"], 1))) || 1;
-    const price = toNumber(pickFirst(item, ["price", "amount"], pickFirst(fallbackRow, ["price", "amount"], 0)));
+    const quantity = toNumber(pickFirst(item, ORDER_ITEM_QTY_COLUMNS, pickFirst(fallbackRow, ORDER_ITEM_QTY_COLUMNS, 1))) || 1;
+    const price = toNumber(pickFirst(item, ORDER_ITEM_PRICE_COLUMNS, pickFirst(fallbackRow, ORDER_ITEM_PRICE_COLUMNS, 0)));
     return {
-      productId: String(pickFirst(item, ["product_id", "id"], pickFirst(fallbackRow, ["product_id"], ""))),
-      name: safeText(pickFirst(item, ["product_name", "name"], pickFirst(fallbackRow, ["product_name", "name"], "منتج"))),
+      productId: String(pickOrderItemProductId(item) || pickOrderItemProductId(fallbackRow || {})),
+      name: safeText(pickFirst(item, ORDER_ITEM_NAME_COLUMNS, pickFirst(fallbackRow, ORDER_ITEM_NAME_COLUMNS, "منتج"))),
       quantity,
       price,
       lineTotal: quantity * price,
@@ -2768,11 +2854,11 @@
       }
 
       const target = grouped.get(orderId);
-      const maybeItems = row.items;
+      const maybeItems = collectOrderItemCandidates(row);
 
       if (Array.isArray(maybeItems) && maybeItems.length) {
         maybeItems.forEach((item) => target.items.push(normalizeOrderItem(item, row)));
-      } else if (row.product_id || row.product_name || row.quantity || row.price) {
+      } else if (pickOrderItemProductId(row) || row.product_name || row.quantity || row.price) {
         target.items.push(normalizeOrderItem(row, row));
       }
     });
@@ -3078,9 +3164,7 @@
       rows.forEach((row) => {
         const orderId = safeText(pickFirst(row, [...ORDER_ITEM_ORDER_ID_COLUMNS, ...ORDER_ID_COLUMNS], ""));
         if (!orderId) return;
-        const productId = safeText(
-          pickFirst(row, ["product_id", "item_id", "id_product", "productid", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], "")
-        );
+        const productId = pickOrderItemProductId(row);
         if (productId) productIds.add(productId);
         rawRows.push({
           orderId,
@@ -3107,9 +3191,7 @@
 
       const item = normalizeOrderItem(
         {
-          product_id:
-            entry.productId ||
-            pickFirst(entry.row, ["product_id", "item_id", "id", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], ""),
+          product_id: entry.productId || pickOrderItemProductId(entry.row),
           product_name: pickFirst(entry.row, ORDER_ITEM_NAME_COLUMNS, "منتج"),
           quantity: pickFirst(entry.row, ORDER_ITEM_QTY_COLUMNS, 1),
           price: pickFirst(entry.row, ORDER_ITEM_PRICE_COLUMNS, 0),
@@ -3174,6 +3256,7 @@
     const orderTables = await resolveAvailableOrderTables();
 
     const directRows = [];
+    const allOrderRows = [];
     for (const table of orderTables) {
       const { data, error } = await client.from(table).select("*").limit(1000);
       if (error) {
@@ -3182,6 +3265,7 @@
       }
 
       const rows = Array.isArray(data) ? data : [];
+      rows.forEach((row) => allOrderRows.push(row));
       const filtered = rows.filter((row) => rowBelongsToOrderOwner(row, ownerCandidates));
       filtered.forEach((row) => directRows.push(row));
     }
@@ -3203,6 +3287,42 @@
         .filter(Boolean)
     );
 
+    const unresolvedOrderRows = allOrderRows.filter((row) => {
+      const rowOrderId = safeText(pickFirst(row, ORDER_ID_COLUMNS, ""));
+      return Boolean(rowOrderId && !knownOrderIds.has(rowOrderId));
+    });
+
+    const unresolvedOrderProductIds = [
+      ...new Set(
+        unresolvedOrderRows
+          .flatMap((row) => extractOrderRowProductIds(row))
+          .map((value) => safeText(value))
+          .filter(Boolean)
+      ),
+    ];
+
+    if (unresolvedOrderRows.length && unresolvedOrderProductIds.length) {
+      const ownedOrderProductIds = await collectOwnedProductIds(ownerCandidates, unresolvedOrderProductIds);
+
+      unresolvedOrderRows.forEach((row) => {
+        const rowOrderId = safeText(pickFirst(row, ORDER_ID_COLUMNS, ""));
+        if (!rowOrderId || knownOrderIds.has(rowOrderId)) return;
+
+        const rowProductIds = extractOrderRowProductIds(row);
+        if (!rowProductIds.length) return;
+        if (!rowProductIds.some((productId) => ownedOrderProductIds.has(productId))) return;
+
+        const normalizedRows = normalizeRpcOrders([row]);
+        const rowOrder = Array.isArray(normalizedRows) && normalizedRows.length
+          ? normalizedRows[0]
+          : normalizeOrderBaseRecord(row, rowOrderId);
+
+        const existing = grouped.get(rowOrderId) || null;
+        grouped.set(rowOrderId, mergeNormalizedOrderRecords(existing, rowOrder));
+        knownOrderIds.add(rowOrderId);
+      });
+    }
+
     const orderItemTables = await resolveAvailableOrderItemTables();
     for (const table of orderItemTables) {
       const { data, error } = await client.from(table).select("*").limit(2000);
@@ -3212,12 +3332,26 @@
       }
 
       const rows = Array.isArray(data) ? data : [];
+      const itemProductIds = [
+        ...new Set(
+          rows
+            .map((row) => pickOrderItemProductId(row))
+            .filter(Boolean)
+        ),
+      ];
+      const ownedItemProductIds = itemProductIds.length
+        ? await collectOwnedProductIds(ownerCandidates, itemProductIds)
+        : new Set();
+
       rows.forEach((row) => {
         const rowOrderId = safeText(pickFirst(row, [...ORDER_ITEM_ORDER_ID_COLUMNS, ...ORDER_ID_COLUMNS], ""));
         if (!rowOrderId) return;
 
         const ownerMatched = rowBelongsToOrderOwner(row, ownerCandidates);
-        if (!knownOrderIds.has(rowOrderId) && !ownerMatched) return;
+        const rowProductIds = extractOrderRowProductIds(row);
+        const rowProductId = rowProductIds[0] || "";
+        const productOwned = rowProductIds.some((productId) => ownedItemProductIds.has(productId));
+        if (!knownOrderIds.has(rowOrderId) && !ownerMatched && !productOwned) return;
 
         knownOrderIds.add(rowOrderId);
 
@@ -3247,7 +3381,7 @@
         }
 
         const item = normalizeOrderItem({
-          product_id: pickFirst(row, ["product_id", "item_id", "id", "legacy_my_products_id", "legacy_product_id", "product_uuid", "uuid"], ""),
+          product_id: rowProductId || pickOrderItemProductId(row),
           product_name: pickFirst(row, ORDER_ITEM_NAME_COLUMNS, "منتج"),
           quantity: pickFirst(row, ORDER_ITEM_QTY_COLUMNS, 1),
           price: pickFirst(row, ORDER_ITEM_PRICE_COLUMNS, 0),
