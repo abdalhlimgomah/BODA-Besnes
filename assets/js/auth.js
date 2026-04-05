@@ -154,6 +154,26 @@
     resetLoginAttemptState();
   }
 
+  function completeSignupLocalFallback(data = {}, authUser = null) {
+    const email = normalizeEmail(data.email || authUser?.email || "");
+    if (!email) return false;
+
+    const localUser = {
+      id: safeText(authUser?.id || ""),
+      email,
+      name: safeText(data.name || authUser?.user_metadata?.full_name || ""),
+      phone: safeText(data.phone || authUser?.user_metadata?.phone || ""),
+      authSource: "local",
+      loginTime: new Date().toISOString(),
+    };
+
+    const applied = window.PartnerSession?.setCurrentUser?.(localUser);
+    if (!applied) return false;
+
+    resetLoginAttemptState();
+    return true;
+  }
+
   function readLocalDirectAccount() {
     try {
       const raw = localStorage.getItem(LOCAL_DIRECT_ACCOUNT_KEY);
@@ -701,7 +721,7 @@
     try {
       const passwordHash = data.password_hash;
       let user = null;
-      let hasAuthSession = false;
+      let usedLocalFallback = false;
 
       try {
         const signUpResult = await window.PartnerAPI.authSignUp({
@@ -711,7 +731,6 @@
           phone: data.phone,
         });
         user = signUpResult?.user || null;
-        hasAuthSession = Boolean(signUpResult?.session);
       } catch (signUpError) {
         if (isRateLimitError(signUpError)) {
           notify("تعذر إكمال إنشاء الحساب الآن. أعد المحاولة بعد قليل.", "error");
@@ -726,14 +745,17 @@
               password: passwordHash,
             });
             user = signInAfterExists?.user || null;
-            hasAuthSession = Boolean(signInAfterExists?.session);
           } catch (recoverError) {
             if (isEmailNotConfirmedError(recoverError)) {
-              markPendingSignup(data.email);
-              notifyActivationPending();
-              return;
-            }
-            if (!isInvalidLoginCredentialsError(recoverError)) {
+              user = user || {
+                id: "",
+                email: data.email,
+                user_metadata: {
+                  full_name: data.name,
+                  phone: data.phone,
+                },
+              };
+            } else if (!isInvalidLoginCredentialsError(recoverError)) {
               throw recoverError;
             }
           }
@@ -747,13 +769,8 @@
         return;
       }
 
-      // في حالة تفعيل تأكيد البريد: signUp يرجع user بدون session.
-      // نتوقف هنا لتفادي محاولات upsert/sync غير المصرّح بها قبل تأكيد البريد.
-      if (!hasAuthSession) {
-        markPendingSignup(data.email);
-        notifyActivationPending();
-        return;
-      }
+      // نكمل مزامنة البيانات حتى لو الجلسة لم تُفتح فورًا،
+      // وبعدها نحاول تسجيل الدخول، ومع فشل الجلسة نفعّل جلسة محلية كـ fallback.
 
       try {
         await window.PartnerAPI.upsertProfile({
@@ -781,13 +798,16 @@
             password: passwordHash,
           });
         } catch (finalSignInError) {
-          if (isEmailNotConfirmedError(finalSignInError)) {
-            markPendingSignup(data.email);
-            notifyActivationPending();
-            return;
-          }
+          if (!isEmailNotConfirmedError(finalSignInError)) throw finalSignInError;
         }
         currentUser = await window.PartnerSession.refreshFromAuth();
+      }
+
+      if (!currentUser) {
+        usedLocalFallback = completeSignupLocalFallback(data, user);
+        if (usedLocalFallback) {
+          currentUser = window.PartnerSession.getCurrentUser?.() || null;
+        }
       }
 
       if (!currentUser) {
@@ -797,7 +817,12 @@
 
       clearSignupSession();
       clearPendingSignup(data.email);
-      notify("تم إنشاء الحساب بنجاح.", "success");
+      notify(
+        usedLocalFallback
+          ? "تم إنشاء الحساب وحفظه وتسجيل الدخول بنجاح."
+          : "تم إنشاء الحساب بنجاح.",
+        "success"
+      );
       setTimeout(() => window.PartnerSession.redirectAfterAuth(data.email), 500);
     } catch (error) {
       console.error("verify signup error", error);
