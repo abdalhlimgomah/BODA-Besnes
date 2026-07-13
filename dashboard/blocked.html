@@ -3,15 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data: https://cdnjs.cloudflare.com; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>تم رفض الطلب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-5" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
 <body class="blocked-page">
   <main class="blocked-wrap">
     <section class="blocked-card" role="alert" aria-live="assertive">
-      <img src="../assets/img/partner-rejected.svg" alt="تم رفض طلب الشراكة" class="blocked-illustration" />
+      <img src="../assets/img/partner-rejected.svg" alt="تم رفض طلب الشراكة" class="blocked-illustration" loading="lazy" />
       <h1>تم رفض طلب الشراكة</h1>
       <p>
         حسابك موقوف مؤقتًا لأن طلب الشراكة تم رفضه. لا يمكنك استخدام لوحة الشريك أو إضافة
@@ -20,13 +21,15 @@
       <button id="blockedLogoutBtn" type="button" class="btn-danger blocked-logout-btn">تسجيل الخروج</button>
     </section>
   </main>
-
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260405-1"></script>
-  <script src="../assets/js/session.js?v=20260327-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-20"></script>
+  <script src="../assets/js/session.js?v=20260712-1"></script>
   <script src="../assets/js/dashboard-blocked.js?v=20260326-1"></script>
 </body>
 </html>
+
+
+
 

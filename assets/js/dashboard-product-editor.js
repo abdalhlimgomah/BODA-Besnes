@@ -1,7 +1,7 @@
 ﻿(() => {
   "use strict";
 
-  const PRODUCT_IMAGE_FIELD_IDS = ["productImage1", "productImage2", "productImage3", "productImage4", "productImage5"];
+  const MAX_IMAGES = 8;
 
   const state = {
     editingId: "",
@@ -9,6 +9,10 @@
     currentUser: null,
     partnerAccess: null,
     productActionsAllowed: true,
+    selectedFiles: [],
+    uploadedUrls: [],
+    selectedVideo: null,
+    uploadedVideoUrl: "",
   };
 
   function safeText(value) {
@@ -19,32 +23,6 @@
     return window.BudaSecurity?.sanitizeText
       ? window.BudaSecurity.sanitizeText(value, maxLength)
       : safeText(value).slice(0, maxLength);
-  }
-
-  function sanitizeImageInput(value) {
-    const raw = String(value ?? "")
-      .replace(/[\u0000-\u001F\u007F]/g, "")
-      .trim();
-    if (!raw) return "";
-    if (window.BudaSecurity?.sanitizeUrl) {
-      return window.BudaSecurity.sanitizeUrl(raw, { allowDataImages: true });
-    }
-    return raw.replace(/^javascript:/i, "");
-  }
-
-  function splitImageInput(value) {
-    const text = safeText(value);
-    if (!text) return [];
-
-    if (/^data:image\//i.test(text)) {
-      const safe = sanitizeImageInput(text);
-      return safe ? [safe] : [];
-    }
-
-    return text
-      .split(/[,\n;\|]+/g)
-      .map((entry) => sanitizeImageInput(entry))
-      .filter(Boolean);
   }
 
   function toNumber(value) {
@@ -125,46 +103,115 @@
     return applyPartnerAccess(access);
   }
 
-  function readImageValues() {
-    const unique = new Set();
+  function renderImagePreviews() {
+    const grid = document.getElementById("imagePreviewGrid");
+    if (!grid) return;
 
-    PRODUCT_IMAGE_FIELD_IDS.forEach((id) => {
-      const raw = document.getElementById(id)?.value || "";
-      splitImageInput(raw).forEach((url) => unique.add(url));
+    var items = [];
+    state.uploadedUrls.forEach(function(url, i) {
+      items.push({ url: url, type: "url", idx: i });
+    });
+    state.selectedFiles.forEach(function(file, i) {
+      items.push({ url: URL.createObjectURL(file), type: "file", idx: i });
     });
 
-    return [...unique].slice(0, 5);
-  }
-
-  function updatePrimaryImagePreview(rawUrl = "") {
-    const previewBox = document.getElementById("primaryImagePreviewBox");
-    const previewImage = document.getElementById("primaryImagePreview");
-    if (!previewBox || !previewImage) return;
-
-    const safeUrl = sanitizeImageInput(rawUrl);
-    if (!safeUrl) {
-      previewImage.removeAttribute("src");
-      previewBox.classList.add("hidden");
+    if (!items.length) {
+      grid.innerHTML = "";
       return;
     }
 
-    previewImage.src = safeUrl;
-    previewBox.classList.remove("hidden");
-  }
-
-  function updateExtraImagePreview() {
-    const grid = document.getElementById("extraImagePreviewGrid");
-    if (!grid) return;
-    const urls = readImageValues().slice(1);
-
-    if (!urls.length) {
-      grid.innerHTML = '<div class="muted editor-thumb-placeholder">أضف صورًا إضافية لعرضها هنا.</div>';
-      return;
-    }
-
-    grid.innerHTML = urls
-      .map((url, index) => `<figure class="editor-thumb"><img src="${url}" loading="lazy" alt="صورة إضافية ${index + 2}" /></figure>`)
+    grid.innerHTML = items
+      .map(function(item, index) {
+        var removeAttr = item.type === "file"
+          ? 'data-remove-image="' + item.idx + '"'
+          : 'data-remove-url="' + item.idx + '"';
+        return '<div class="editor-upload-preview">' +
+          '<img src="' + item.url + '" alt="صورة ' + (index + 1) + '" />' +
+          '<button class="remove-btn" ' + removeAttr + ' type="button">&times;</button>' +
+        '</div>';
+      })
       .join("");
+  }
+
+  function handleImageSelect(files) {
+    const remaining = MAX_IMAGES - state.selectedFiles.length;
+    const allowed = Array.from(files).slice(0, remaining);
+    if (allowed.length < files.length) {
+      notify(`يمكنك اختيار ${MAX_IMAGES} صور كحد أقصى.`, "info");
+    }
+    state.selectedFiles.push(...allowed);
+    renderImagePreviews();
+  }
+
+  function removeImage(index) {
+    state.selectedFiles.splice(index, 1);
+    renderImagePreviews();
+  }
+
+  async function uploadSelectedFiles() {
+    const client = window.PartnerAPI?.raw?.();
+    if (!client) {
+      console.error("Supabase client not available");
+      return [];
+    }
+
+    const urls = [];
+
+    for (const file of state.selectedFiles) {
+      try {
+        const fileName = `${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+        const { error: uploadError } = await client.storage.from("Buda").upload(fileName, file, { upsert: true });
+        if (uploadError) {
+          console.error("upload failed", uploadError);
+          continue;
+        }
+        const { data } = client.storage.from("Buda").getPublicUrl(fileName);
+        if (data?.publicUrl) urls.push(data.publicUrl);
+      } catch (err) {
+        console.error("upload exception", err);
+      }
+    }
+
+    return urls;
+  }
+
+  async function uploadVideo(file) {
+    const client = window.PartnerAPI?.raw?.();
+    if (!client) return "";
+    try {
+      const fileName = `videos/${Date.now()}_${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error: uploadError } = await client.storage.from("Buda").upload(fileName, file, { upsert: true });
+      if (uploadError) {
+        console.error("video upload failed", uploadError);
+        return "";
+      }
+      const { data } = client.storage.from("Buda").getPublicUrl(fileName);
+      return data?.publicUrl || "";
+    } catch (err) {
+      console.error("video upload exception", err);
+      return "";
+    }
+  }
+
+  function renderVideoPreview() {
+    const videoBox = document.getElementById("videoPreviewBox");
+    const videoEl = document.getElementById("videoPreview");
+    const uploadText = document.getElementById("videoUploadText");
+    if (!videoBox || !videoEl) return;
+
+    if (state.selectedVideo) {
+      videoEl.src = URL.createObjectURL(state.selectedVideo);
+      videoBox.classList.remove("hidden");
+      if (uploadText) uploadText.textContent = "تغيير الفيديو";
+    } else if (state.uploadedVideoUrl) {
+      videoEl.src = state.uploadedVideoUrl;
+      videoBox.classList.remove("hidden");
+      if (uploadText) uploadText.textContent = "تغيير الفيديو";
+    } else {
+      videoEl.removeAttribute("src");
+      videoBox.classList.add("hidden");
+      if (uploadText) uploadText.textContent = "اضغط لاختيار فيديو من المعرض";
+    }
   }
 
   function updateModeUI() {
@@ -178,7 +225,7 @@
     if (editorSubtitle) {
       editorSubtitle.textContent = isEditing
         ? "عدّل الصور والبيانات ثم احفظ التحديث."
-        : "اكتب كل تفاصيل المنتج واربط حتى 5 صور بجودة واضحة.";
+        : "أدخل بيانات المنتج مع حتى 8 صور وفيديو من المعرض.";
     }
     if (submitBtn) submitBtn.textContent = isEditing ? "حفظ التعديل" : "إضافة المنتج";
     if (cancelLink) cancelLink.classList.toggle("hidden", !isEditing);
@@ -193,7 +240,8 @@
       discountPercent: toNumber(document.getElementById("productDiscount")?.value),
       quantity: toNumber(document.getElementById("productQuantity")?.value),
       phone: sanitizeTextInput(document.getElementById("productPhone")?.value, 30),
-      images: readImageValues(),
+      images: state.uploadedUrls,
+      videoUrl: state.uploadedVideoUrl,
     };
   }
 
@@ -203,7 +251,7 @@
     }
     if (product.price <= 0) return "السعر يجب أن يكون أكبر من صفر.";
     if (product.quantity < 0) return "الكمية غير صحيحة.";
-    if (!Array.isArray(product.images) || !product.images.length) return "أضف رابط صورة واحدة على الأقل.";
+    if (!state.selectedFiles.length && (!Array.isArray(product.images) || !product.images.length)) return "أضف صورة واحدة على الأقل.";
     return "";
   }
 
@@ -217,13 +265,12 @@
     document.getElementById("productPhone").value = product.phone || "";
 
     const images = Array.isArray(product.images) ? product.images : [];
-    PRODUCT_IMAGE_FIELD_IDS.forEach((fieldId, index) => {
-      const input = document.getElementById(fieldId);
-      if (input) input.value = images[index] || "";
-    });
-
-    updatePrimaryImagePreview(images[0] || "");
-    updateExtraImagePreview();
+    state.uploadedUrls = images.slice();
+    state.selectedFiles = [];
+    state.uploadedVideoUrl = product.videoUrl || "";
+    state.selectedVideo = null;
+    renderImagePreviews();
+    renderVideoPreview();
   }
 
   function resetForm() {
@@ -231,9 +278,13 @@
     if (!form) return;
     form.reset();
     state.editingId = "";
+    state.selectedFiles = [];
+    state.uploadedUrls = [];
+    state.selectedVideo = null;
+    state.uploadedVideoUrl = "";
     updateModeUI();
-    updatePrimaryImagePreview("");
-    updateExtraImagePreview();
+    renderImagePreviews();
+    renderVideoPreview();
   }
 
   function readEditIdFromUrl() {
@@ -267,6 +318,7 @@
     }
 
     fillForm(targetProduct);
+    updateModeUI();
   }
 
   async function handleProductSubmit(event) {
@@ -289,8 +341,28 @@
       return;
     }
 
-    setButtonLoading(submitBtn, "جارٍ الحفظ...", true);
+    console.log("=== SAVE DEBUG ===", { editingId: state.editingId, currentUser: state.currentUser, uploadedUrls: state.uploadedUrls, uploadedVideoUrl: state.uploadedVideoUrl });
+    setButtonLoading(submitBtn, "جارٍ رفع الصور...", true);
     try {
+      if (state.selectedFiles.length) {
+        notify("جارٍ رفع الصور إلى الخادم...", "info");
+        var newUrls = await uploadSelectedFiles();
+        if (!newUrls.length) {
+          notify("فشل رفع الصور، تأكد من اتصالك وحاول مرة أخرى.", "error");
+          return;
+        }
+        state.uploadedUrls.push.apply(state.uploadedUrls, newUrls);
+      }
+
+      if (state.selectedVideo) {
+        notify("جارٍ رفع الفيديو...", "info");
+        state.uploadedVideoUrl = await uploadVideo(state.selectedVideo);
+      }
+
+      payload.images = state.uploadedUrls;
+      payload.videoUrl = state.uploadedVideoUrl;
+
+      setButtonLoading(submitBtn, "جارٍ الحفظ...", true);
       if (state.editingId) {
         await window.PartnerAPI.updateProduct(state.editingId, payload, state.currentUser);
         notify("تم تعديل المنتج بنجاح.", "success");
@@ -300,7 +372,9 @@
       } else {
         await window.PartnerAPI.insertProduct(payload, state.currentUser);
         notify("تمت إضافة المنتج بنجاح.", "success");
-        resetForm();
+        setTimeout(function() {
+          window.location.href = "products.html";
+        }, 500);
       }
     } catch (error) {
       console.error("save product error", error);
@@ -323,17 +397,76 @@
     }
   }
 
-  function bindImagePreviewEvents() {
-    PRODUCT_IMAGE_FIELD_IDS.forEach((fieldId) => {
-      document.getElementById(fieldId)?.addEventListener("input", () => {
-        const images = readImageValues();
-        updatePrimaryImagePreview(images[0] || "");
-        updateExtraImagePreview();
-      });
+  function bindImageUploadEvents() {
+    const zone = document.getElementById("imageUploadZone");
+    const input = document.getElementById("productImageInput");
+    if (!zone || !input) return;
+
+    zone.addEventListener("click", () => input.click());
+
+    input.addEventListener("change", (event) => {
+      if (event.target.files?.length) {
+        handleImageSelect(event.target.files);
+      }
+      input.value = "";
     });
 
-    document.getElementById("primaryImagePreview")?.addEventListener("error", () => {
-      updatePrimaryImagePreview("");
+    zone.addEventListener("dragover", (e) => {
+      e.preventDefault();
+      zone.style.borderColor = "#3b82f6";
+      zone.style.background = "#eff6ff";
+    });
+
+    zone.addEventListener("dragleave", () => {
+      zone.style.borderColor = "#cbd5e1";
+      zone.style.background = "#f8fafc";
+    });
+
+    zone.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zone.style.borderColor = "#cbd5e1";
+      zone.style.background = "#f8fafc";
+      if (e.dataTransfer.files?.length) {
+        handleImageSelect(e.dataTransfer.files);
+      }
+    });
+
+    document.getElementById("imagePreviewGrid")?.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-remove-image]");
+      if (btn) {
+        const index = parseInt(btn.getAttribute("data-remove-image"), 10);
+        if (!isNaN(index)) removeImage(index);
+        return;
+      }
+      const urlBtn = e.target.closest("[data-remove-url]");
+      if (urlBtn) {
+        const index = parseInt(urlBtn.getAttribute("data-remove-url"), 10);
+        if (!isNaN(index) && index >= 0 && index < state.uploadedUrls.length) {
+          state.uploadedUrls.splice(index, 1);
+          renderImagePreviews();
+        }
+      }
+    });
+
+    // Video upload
+    const videoZone = document.getElementById("videoUploadZone");
+    const videoInput = document.getElementById("productVideoInput");
+    if (videoZone && videoInput) {
+      videoZone.addEventListener("click", () => videoInput.click());
+      videoInput.addEventListener("change", (event) => {
+        if (event.target.files?.length) {
+          state.selectedVideo = event.target.files[0];
+          state.uploadedVideoUrl = "";
+          renderVideoPreview();
+        }
+        videoInput.value = "";
+      });
+    }
+
+    document.getElementById("removeVideoBtn")?.addEventListener("click", () => {
+      state.selectedVideo = null;
+      state.uploadedVideoUrl = "";
+      renderVideoPreview();
     });
   }
 
@@ -350,14 +483,12 @@
 
     const canManageProducts = await ensureProductActionsAllowed(true);
     if (!canManageProducts) {
-      bindImagePreviewEvents();
-      updateExtraImagePreview();
+      bindImageUploadEvents();
       return;
     }
 
     document.getElementById("productForm")?.addEventListener("submit", handleProductSubmit);
-    bindImagePreviewEvents();
-    updateExtraImagePreview();
+    bindImageUploadEvents();
 
     try {
       await bindEditingFromUrl();

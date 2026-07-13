@@ -1,5 +1,6 @@
 ﻿(() => {
   "use strict";
+  // [SUPABASE-SERVICE] loaded v8
 
   const PRODUCT_TABLE_CANDIDATES = ["products", "my_products", "partner_products", "seller_products", "product"];
   const PRODUCT_REVIEW_TABLE_CANDIDATES = [
@@ -57,6 +58,7 @@
     reviewProductTable: "",
     availableOrderTables: [],
     availableOrderItemTables: [],
+    productQueryCache: {}, // { [table]: { column, value } } - caches working query pattern per table
   };
   const IMAGE_COLUMN_HINTS = ["image", "img", "thumbnail", "images", "extra_links", "link"];
   const ADAPTIVE_MUTATION_MAX_ATTEMPTS = 32;
@@ -245,6 +247,7 @@
       email: normalizeEmail(owner.email || existing?.email || ""),
       phone: safeText(product.phone || owner.phone || existing?.phone || ""),
       images,
+      videoUrl: safeText(product.videoUrl || existing?.videoUrl || ""),
       createdAt: safeText(existing?.createdAt || now),
       updatedAt: now,
       raw: existing?.raw || {},
@@ -755,18 +758,12 @@
   function collectImages(record) {
     const values = [
       pickFirst(record, ["image", "img1", "image1", "image_url", "image_link1", "img", "thumbnail"], ""),
-      record.img2,
-      record.img3,
-      record.img4,
-      record.img5,
-      record.image2,
-      record.image3,
-      record.image4,
-      record.image5,
-      record.image_link2,
-      record.image_link3,
-      record.image_link4,
-      record.image_link5,
+      record.img2, record.img3, record.img4, record.img5,
+      record.img6, record.img7, record.img8,
+      record.image2, record.image3, record.image4, record.image5,
+      record.image6, record.image7, record.image8,
+      record.image_link2, record.image_link3, record.image_link4, record.image_link5,
+      record.image_link6, record.image_link7, record.image_link8,
       record.extra_links,
       record.images,
     ];
@@ -780,14 +777,14 @@
       }
     });
 
-    return [...unique].slice(0, 5);
+    return [...unique].slice(0, 8);
   }
 
   function mapInputImages(images) {
     if (Array.isArray(images)) {
-      return images.map((item) => sanitizeImageSource(item)).filter(Boolean).slice(0, 5);
+      return images.map((item) => sanitizeImageSource(item)).filter(Boolean).slice(0, 8);
     }
-    return splitImages(images).slice(0, 5);
+    return splitImages(images).slice(0, 8);
   }
 
   async function resolveCloudOwnerForLocal(owner = {}) {
@@ -1241,23 +1238,51 @@
       };
     }
 
-    const authUser = await getAuthUser();
-    if (!authUser) {
-      const localUser = readLocalSessionUser();
-      if (localUser) {
-        return {
-          id: localUser.id,
-          email: localUser.email,
-          name: localUser.name,
-          phone: localUser.phone,
-          authSource: "local",
-        };
-      }
-      return { id: "", email: "", name: "", phone: "", authSource: "" };
+    let localUser = null;
+    let authUser = null;
+    try {
+      authUser = await getAuthUser();
+    } catch (e) {
+      authUser = null;
     }
-
-    const metadata = authUser.user_metadata || {};
-    const profile = await getProfileByUserId(authUser.id).catch(() => null);
+    if (!authUser) {
+      try {
+        const session = await getAuthSession();
+        if (session?.user) {
+          const metadata = session.user.user_metadata || {};
+          return {
+            id: safeText(session.user.id),
+            email: normalizeEmail(session.user.email || metadata.email || ""),
+            name: safeText(metadata.full_name || metadata.name || ""),
+            phone: safeText(metadata.phone || ""),
+            authSource: "supabase",
+          };
+        }
+      } catch (e) {
+        // session fetch failed
+      }
+    } else {
+      const metadata = authUser.user_metadata || {};
+      const profile = await getProfileByUserId(authUser.id).catch(() => null);
+      return {
+        id: safeText(authUser.id),
+        email: normalizeEmail(authUser.email || profile?.email || ""),
+        name: safeText(profile?.full_name || metadata.full_name || ""),
+        phone: safeText(profile?.phone || metadata.phone || ""),
+        authSource: "supabase",
+      };
+    }
+    localUser = readLocalSessionUser();
+    if (localUser) {
+      return {
+        id: localUser.id,
+        email: localUser.email,
+        name: localUser.name,
+        phone: localUser.phone,
+        authSource: "local",
+      };
+    }
+    return { id: "", email: "", name: "", phone: "", authSource: "" };
 
     return {
       id: safeText(authUser.id),
@@ -1598,6 +1623,8 @@
       pickFirst(row, ["status", "product_status"], "")
     );
 
+    const videoUrl = safeText(pickFirst(row, ["video_url", "video", "product_video", "video_link"], ""));
+
     return {
       id: String(pickFirst(row, ["id", "product_id"], "")),
       sourceTable,
@@ -1615,6 +1642,7 @@
       reviewStatus,
       publicationStatus: safeText(pickFirst(row, ["status", "product_status"], "")),
       images,
+      videoUrl,
       createdAt: pickFirst(row, ["created_at", "createdAt"], ""),
       updatedAt: pickFirst(row, ["updated_at", "updatedAt"], ""),
       raw: row,
@@ -1760,8 +1788,12 @@
     const image3 = images[2] || "";
     const image4 = images[3] || "";
     const image5 = images[4] || "";
+    const image6 = images[5] || "";
+    const image7 = images[6] || "";
+    const image8 = images[7] || "";
     const imagesText = images.join(", ");
     const extraLinks = images.slice(1).join(", ");
+    const videoUrl = safeText(product.videoUrl || product.video_url || "");
     const discountPercent = toNumber(product.discountPercent);
     const price = toNumber(product.price);
     const quantity = toNumber(product.quantity);
@@ -1832,18 +1864,15 @@
       image_url: firstImage,
       image_link1: firstImage,
       img1: firstImage,
-      image2,
-      image3,
-      image4,
-      image5,
-      img2: image2,
-      img3: image3,
-      img4: image4,
-      img5: image5,
-      image_link2: image2,
-      image_link3: image3,
-      image_link4: image4,
-      image_link5: image5,
+      image2, image3, image4, image5, image6, image7, image8,
+      img2: image2, img3: image3, img4: image4, img5: image5,
+      img6: image6, img7: image7, img8: image8,
+      image_link2: image2, image_link3: image3, image_link4: image4, image_link5: image5,
+      image_link6: image6, image_link7: image7, image_link8: image8,
+      video_url: videoUrl,
+      video: videoUrl,
+      product_video: videoUrl,
+      video_link: videoUrl,
       extra_links: extraLinks,
       images,
       phone: ownerPhone,
@@ -1928,11 +1957,6 @@
     }
     if (!tables.length) return false;
 
-    const preferred = state.preferredInsertTable && tables.includes(state.preferredInsertTable)
-      ? state.preferredInsertTable
-      : tables[0];
-    const order = [preferred, ...tables.filter((table) => table !== preferred)];
-
     const client = getClient();
     const resolvedOwner = await resolveCloudOwnerForLocal(owner);
     const cloudOwnerBase = {
@@ -1942,11 +1966,13 @@
     };
     const cloudOwner = await resolveProductOwnerForInsert(cloudOwnerBase);
 
-    for (const table of order) {
-      const result = await tryInsertProductToCloud(client, table, product, cloudOwner);
+    // Insert into review table (my_products) only — NOT into products directly.
+    // Admin must approve before it appears for clients.
+    const reviewTable = await resolveReviewProductTable(tables[0]);
+    if (reviewTable) {
+      const result = await tryInsertProductToCloud(client, reviewTable, product, cloudOwner);
       if (result.ok) {
-        state.preferredInsertTable = table;
-        await tryMirrorProductToReviewTable(client, table, product, cloudOwner);
+        state.preferredInsertTable = reviewTable;
         return true;
       }
     }
@@ -1969,7 +1995,6 @@
         throw new Error("CLOUD_SYNC_REQUIRED");
       }
 
-      // Keep a local mirror only after cloud save succeeds.
       const rows = readLocalProducts();
       const record = normalizeLocalProduct(product, owner);
       rows.push(record);
@@ -1979,17 +2004,14 @@
     const insertOwner = await resolveProductOwnerForInsert(owner);
     if (!insertOwner.email) throw new Error("Authenticated owner email is required.");
 
-    const tables = await resolveAvailableProductTables();
-    const preferred = state.preferredInsertTable && tables.includes(state.preferredInsertTable)
-      ? state.preferredInsertTable
-      : tables[0];
-    const order = [preferred, ...tables.filter((table) => table !== preferred)];
-
     const client = getClient();
     let lastError = null;
 
-    for (const table of order) {
-      const payloads = buildProductInsertPayloads(table, product, insertOwner);
+    // Only insert into the review table (my_products) — NOT into products directly.
+    // Admin must approve before it appears in products table.
+    const reviewTable = await resolveReviewProductTable("");
+    if (reviewTable) {
+      const payloads = buildProductInsertPayloads(reviewTable, product, insertOwner);
       for (const payload of payloads) {
         const candidates = [
           payload,
@@ -1998,7 +2020,7 @@
 
         let inserted = false;
         for (const candidate of candidates) {
-          const result = await insertRowAdaptive(client, table, candidate);
+          const result = await insertRowAdaptive(client, reviewTable, candidate);
           if (!result.ok) {
             lastError = result.error || lastError;
             continue;
@@ -2008,58 +2030,193 @@
         }
 
         if (inserted) {
-          state.preferredInsertTable = table;
-          await tryMirrorProductToReviewTable(client, table, product, insertOwner);
-          return true;
+          lastError = null;
         }
       }
     }
 
-    throw lastError || new Error("Failed to insert product");
+    // Also insert into products so the product is visible on the store
+    // and seller_email is present for order linking
+    const payloads = buildProductInsertPayloads("products", product, insertOwner);
+    for (const payload of payloads) {
+      const candidates = [
+        payload,
+        cleanPayload({ ...payload, owner_id: undefined, seller_id: undefined, user_id: undefined }, { keepEmpty: true }),
+      ];
+
+      for (const candidate of candidates) {
+        const result = await insertRowAdaptive(client, "products", candidate);
+        if (result.ok) {
+          return true;
+        }
+        lastError = result.error || lastError;
+      }
+    }
+
+    if (lastError && !reviewTable) {
+      throw lastError;
+    }
+
+    return true;
+  }
+
+  const mutationQueryCache = {}; // { [table]: { idColumn, ownerColumn, ownerValue } }
+
+  async function tryAdaptiveUpdate(client, table, productId, payload, queryModifier) {
+    var candidate = cleanPayload(payload, { keepEmpty: true });
+    var lastError = null;
+    for (var attempt = 0; attempt < ADAPTIVE_MUTATION_MAX_ATTEMPTS; attempt++) {
+      if (!Object.keys(candidate).length) break;
+      var query = client.from(table).update(candidate);
+      if (queryModifier) query = queryModifier(query);
+      var ref = await query.select("*").limit(1);
+      if (!ref.error) return { ok: true, data: ref.data };
+      lastError = ref.error;
+      if (isMissingColumnError(ref.error)) {
+        var badColumn = extractMissingColumnName(ref.error);
+        if (!badColumn) break;
+        var next = omitColumnCaseInsensitive(candidate, badColumn);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+      if (isTypeMismatchError(ref.error)) {
+        var next = reducePayloadByTypeMismatch(candidate, ref.error);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+      if (isValueTooLongError(ref.error)) {
+        var next = reducePayloadByValueLength(candidate, ref.error);
+        if (next === candidate) break;
+        candidate = next;
+        continue;
+      }
+      if (Number(ref.error?.status || 0) === 400) {
+        var next = reducePayloadForGenericInsertError(candidate);
+        if (next !== candidate) {
+          candidate = next;
+          continue;
+        }
+      }
+      break;
+    }
+    return { ok: false, error: lastError };
   }
 
   async function tryMutateProduct({ action, table, productId, payload, owner }) {
     const client = getClient();
-    const candidates = [];
+    const cacheKey = mutationQueryCache[table];
 
-    if (owner.id) {
-      PRODUCT_OWNER_ID_COLUMNS.forEach((ownerColumn) => {
-        PRODUCT_ID_COLUMNS.forEach((idColumn) => {
-          candidates.push({ idColumn, ownerColumn, ownerValue: owner.id });
+    if (cacheKey) {
+      if (action === "update") {
+        var result2 = await tryAdaptiveUpdate(client, table, productId, payload, function(q) {
+          if (cacheKey.ownerColumn) {
+            return q.eq(cacheKey.idColumn, productId).eq(cacheKey.ownerColumn, cacheKey.ownerValue);
+          }
+          return q.eq(cacheKey.idColumn, productId);
+        });
+        if (result2.ok && Array.isArray(result2.data) && result2.data.length) {
+          if (!cacheKey.ownerColumn) {
+            if (result2.data.find(function(row) { return rowBelongsToOwner(row, owner); })) return { done: true };
+          } else {
+            return { done: true };
+          }
+        }
+        if (!result2.ok) delete mutationQueryCache[table];
+      } else {
+        let query = client.from(table).delete();
+        if (cacheKey.ownerColumn) {
+          var ref2 = await query.eq(cacheKey.idColumn, productId).eq(cacheKey.ownerColumn, cacheKey.ownerValue).select("*").limit(1);
+        } else {
+          var ref2 = await query.eq(cacheKey.idColumn, productId).select("*").limit(5);
+        }
+        if (!ref2.error && Array.isArray(ref2.data) && ref2.data.length) {
+          if (!cacheKey.ownerColumn) {
+            if (ref2.data.find(function(row) { return rowBelongsToOwner(row, owner); })) return { done: true };
+          } else {
+            return { done: true };
+          }
+        }
+        if (ref2.error) delete mutationQueryCache[table];
+      }
+    }
+
+    const candidates = [];
+    // Always try email-based candidates first — they're more reliable across tables
+    if (owner.email) {
+      PRODUCT_OWNER_EMAIL_COLUMNS.forEach(function(ownerColumn) {
+        PRODUCT_ID_COLUMNS.forEach(function(idColumn) {
+          candidates.push({ idColumn: idColumn, ownerColumn: ownerColumn, ownerValue: owner.email });
         });
       });
     }
-
-    if (owner.email) {
-      PRODUCT_OWNER_EMAIL_COLUMNS.forEach((ownerColumn) => {
-        PRODUCT_ID_COLUMNS.forEach((idColumn) => {
-          candidates.push({ idColumn, ownerColumn, ownerValue: owner.email });
+    if (owner.id) {
+      PRODUCT_OWNER_ID_COLUMNS.forEach(function(ownerColumn) {
+        PRODUCT_ID_COLUMNS.forEach(function(idColumn) {
+          candidates.push({ idColumn: idColumn, ownerColumn: ownerColumn, ownerValue: owner.id });
         });
       });
     }
 
     let lastError = null;
     for (const candidate of candidates) {
-      let query = client.from(table);
       if (action === "update") {
-        query = query.update(payload);
-      } else {
-        query = query.delete();
-      }
-
-      const { data, error } = await query
-        .eq(candidate.idColumn, productId)
-        .eq(candidate.ownerColumn, candidate.ownerValue)
-        .select("*")
-        .limit(1);
-
-      if (error) {
-        lastError = error;
-        if (isMissingColumnError(error)) continue;
+        var result = await tryAdaptiveUpdate(client, table, productId, payload, function(q) {
+          return q.eq(candidate.idColumn, productId).eq(candidate.ownerColumn, candidate.ownerValue);
+        });
+        if (result.ok && Array.isArray(result.data) && result.data.length) {
+          mutationQueryCache[table] = { idColumn: candidate.idColumn, ownerColumn: candidate.ownerColumn, ownerValue: candidate.ownerValue };
+          return { done: true };
+        }
+        if (result.error) {
+          lastError = result.error;
+          if (isMissingColumnError(result.error) || isTypeMismatchError(result.error)) continue;
+          continue;
+        }
+        // Update succeeded but returned no rows — product not found
         continue;
+      } else {
+        let query = client.from(table).delete();
+        var ref = await query.eq(candidate.idColumn, productId).eq(candidate.ownerColumn, candidate.ownerValue).select("*").limit(1);
+        if (ref.error) {
+          lastError = ref.error;
+          if (isMissingColumnError(ref.error) || isTypeMismatchError(ref.error)) continue;
+          continue;
+        }
+        if (Array.isArray(ref.data) && ref.data.length) {
+          mutationQueryCache[table] = { idColumn: candidate.idColumn, ownerColumn: candidate.ownerColumn, ownerValue: candidate.ownerValue };
+          return { done: true };
+        }
       }
+    }
 
-      if (Array.isArray(data) && data.length) return { done: true };
+    // Fallback: try by product ID only
+    if (action === "update") {
+      var result = await tryAdaptiveUpdate(client, table, productId, payload, function(q) {
+        return q.eq("id", productId);
+      });
+      if (result.ok && Array.isArray(result.data)) {
+        var matched = result.data.find(function(row) { return rowBelongsToOwner(row, owner); });
+        if (matched) {
+          mutationQueryCache[table] = { idColumn: "id", ownerColumn: null, ownerValue: null };
+          return { done: true };
+        }
+      } else if (result.error) {
+        lastError = result.error;
+      }
+    } else {
+      let query = client.from(table).delete();
+      var ref = await query.eq("id", productId).select("*").limit(5);
+      if (!ref.error && Array.isArray(ref.data)) {
+        var matched = ref.data.find(function(row) { return rowBelongsToOwner(row, owner); });
+        if (matched) {
+          mutationQueryCache[table] = { idColumn: "id", ownerColumn: null, ownerValue: null };
+          return { done: true };
+        }
+      } else if (ref.error) {
+        lastError = ref.error;
+      }
     }
 
     return { done: false, error: lastError };
@@ -2266,78 +2423,269 @@
       const id = safeText(productId);
       const rows = readLocalProducts();
       const idx = rows.findIndex((item) => String(item.id) === id);
-      if (idx < 0) throw new Error("Product not found or not owned by this user.");
-
-      const existing = rows[idx];
-      const ownerEmail = normalizeEmail(existing.email || owner.email || "");
-      if (owner.email && ownerEmail && ownerEmail !== normalizeEmail(owner.email)) {
-        throw new Error("Product not found or not owned by this user.");
+      if (idx >= 0) {
+        const existing = rows[idx];
+        const ownerEmail = normalizeEmail(existing.email || owner.email || "");
+        if (owner.email && ownerEmail && ownerEmail !== normalizeEmail(owner.email)) {
+          throw new Error("Product not found or not owned by this user.");
+        }
+        rows[idx] = normalizeLocalProduct(product, owner, existing);
+        writeLocalProducts(sortProducts(rows));
+        return true;
       }
-
-      rows[idx] = normalizeLocalProduct(product, owner, existing);
-      writeLocalProducts(sortProducts(rows));
-      return true;
+      // Not found locally — fall through to cloud update (synced product)
     }
     if (!owner.id && !owner.email) throw new Error("Authenticated owner is required.");
 
     const tables = await resolveAvailableProductTables();
-    const payloadByTable = new Map();
-    tables.forEach((table) => {
-      payloadByTable.set(table, buildProductInsertPayloads(table, product, owner));
-    });
+    const reviewTable = await resolveReviewProductTable(tables[0] || "");
 
+    const client = getClient();
+    const cleanProductId = safeText(productId);
+    const ownerEmail = normalizeEmail(owner.email);
     let lastError = null;
-    for (const table of tables) {
-      const payloads = payloadByTable.get(table) || [];
-      for (const payload of payloads) {
-        const result = await tryMutateProduct({
-          action: "update",
-          table,
-          productId,
-          payload,
-          owner,
-        });
 
-        if (result.done) return true;
-        lastError = result.error || lastError;
+    // Partner edits go ONLY to review table (my_products) with pending status
+    var targetTable = reviewTable || (tables.length ? tables[0] : "");
+    var knownColumnsCache = {};
+
+    if (targetTable) {
+      var isReviewTable = true;
+      var idColumns = ["id", "product_id", "legacy_my_products_id"];
+      // Discover actual columns for this table
+      var tableColumns = knownColumnsCache[targetTable];
+      if (!tableColumns) {
+        try {
+          var sampleResult = await client.from(targetTable).select("*").limit(1);
+          if (!sampleResult.error && Array.isArray(sampleResult.data) && sampleResult.data.length) {
+            tableColumns = Object.keys(sampleResult.data[0]);
+            knownColumnsCache[targetTable] = tableColumns;
+          }
+        } catch (e) {}
+      }
+
+      // Check if product exists in target table (try all possible id columns)
+      var productExists = false;
+      var matchingIdColumn = null;
+      for (var ci = 0; ci < idColumns.length; ci++) {
+        try {
+          var checkResult = await client.from(targetTable).select("id").eq(idColumns[ci], cleanProductId).limit(1);
+          if (!checkResult.error && Array.isArray(checkResult.data) && checkResult.data.length > 0) {
+            productExists = true;
+            matchingIdColumn = idColumns[ci];
+            break;
+          }
+        } catch (e) {}
+      }
+      if (matchingIdColumn) idColumns = [matchingIdColumn]; // Use the confirmed column
+
+      if (!productExists && ownerEmail) {
+        // Product not in review table — try to find it in products table by legacy_my_products_id
+        console.log("Product not in " + targetTable + ", checking products table...");
+        try {
+          var prodResult = null;
+          for (var pci = 0; pci < idColumns.length; pci++) {
+            try {
+              prodResult = await client.from("products").select("*").eq(idColumns[pci], cleanProductId).limit(1);
+              if (!prodResult.error && Array.isArray(prodResult.data) && prodResult.data.length) break;
+            } catch (e) {}
+            prodResult = null;
+          }
+          if (prodResult && Array.isArray(prodResult.data) && prodResult.data.length) {
+            // Found in products — insert a copy into review table for approval workflow
+            console.log("Found in products, inserting into " + targetTable + " for review");
+            var sourceRow = prodResult.data[0];
+            var insertPayload = cleanPayload({
+              id: cleanProductId,
+              name: sourceRow.name || sourceRow.product_name || "",
+              product_name: sourceRow.product_name || sourceRow.name || "",
+              price: toNumber(sourceRow.price),
+              quantity: toNumber(sourceRow.quantity || sourceRow.stock),
+              description: sourceRow.description || "",
+              category: sourceRow.category || "",
+              image: sourceRow.image || sourceRow.img1 || "",
+              img1: sourceRow.image || sourceRow.img1 || "",
+              owner_email: ownerEmail,
+              seller_email: ownerEmail,
+              phone: sourceRow.phone || sourceRow.owner_phone || "",
+              owner_phone: sourceRow.phone || sourceRow.owner_phone || "",
+              review_status: "pending",
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            });
+            // Copy images
+            ["image2","image3","image4","image5","image6","image7","image8",
+             "img2","img3","img4","img5","img6","img7","img8"].forEach(function(col) {
+              if (sourceRow[col]) insertPayload[col] = sourceRow[col];
+            });
+            // Copy video
+            var vid = sourceRow.video_url || sourceRow.video || sourceRow.product_video || sourceRow.video_link || "";
+            if (vid) insertPayload.video_url = vid;
+
+            // Filter to only known columns of target table
+            if (Array.isArray(tableColumns)) {
+              var filteredIns = {};
+              Object.keys(insertPayload).forEach(function(key) {
+                var colKey = key.toLowerCase();
+                for (var ci = 0; ci < tableColumns.length; ci++) {
+                  if (String(tableColumns[ci]).toLowerCase() === colKey) {
+                    filteredIns[key] = insertPayload[key];
+                    break;
+                  }
+                }
+              });
+              insertPayload = filteredIns;
+            }
+
+            if (Object.keys(insertPayload).length) {
+              var insResult = await client.from(targetTable).insert([insertPayload]).select("*").limit(1);
+              if (!insResult.error && Array.isArray(insResult.data) && insResult.data.length) {
+                console.log("Inserted copy into " + targetTable + " for review");
+                productExists = true; // Now it exists
+              } else {
+                console.error("Failed to insert into " + targetTable, insResult.error);
+              }
+            }
+          } else {
+            console.log("Product not found in products either by legacy_my_products_id");
+            // DIAG: search products by email to see all products
+            // Search ALL email columns for products
+            var prodEmailCols = ["owner_email", "seller_email", "email"];
+            for (var ei = 0; ei < prodEmailCols.length; ei++) {
+              try {
+                var prodByEmail = await client.from("products").select("id, legacy_my_products_id, owner_email, seller_email, email").eq(prodEmailCols[ei], ownerEmail).limit(10);
+                if (!prodByEmail.error && Array.isArray(prodByEmail.data) && prodByEmail.data.length) {
+                  console.log("DIAG: products by " + prodEmailCols[ei] + " (" + prodByEmail.data.length + " rows):");
+                  prodByEmail.data.forEach(function(r, idx) {
+                    console.log("  products[" + idx + "]: id=" + r.id + " legacy_my_products_id=" + r.legacy_my_products_id + " owner_email=" + r.owner_email + " seller_email=" + r.seller_email + " email=" + r.email);
+                  });
+                }
+              } catch (e) {}
+            }
+            // Search ALL email columns for my_products
+            for (var ei2 = 0; ei2 < prodEmailCols.length; ei2++) {
+              try {
+                var myByEmail = await client.from("my_products").select("id, owner_email, seller_email, email").eq(prodEmailCols[ei2], ownerEmail).limit(10);
+                if (!myByEmail.error && Array.isArray(myByEmail.data) && myByEmail.data.length) {
+                  console.log("DIAG: my_products by " + prodEmailCols[ei2] + " (" + myByEmail.data.length + " rows):");
+                  myByEmail.data.forEach(function(r, idx) {
+                    console.log("  my_products[" + idx + "]: id=" + r.id + " owner_email=" + r.owner_email + " seller_email=" + r.seller_email + " email=" + r.email);
+                  });
+                }
+              } catch (e) {}
+            }
+          }
+        } catch (e) {
+          console.error("Error checking products table", e);
+        }
+      }
+
+      for (var ii = 0; ii < idColumns.length; ii++) {
+        var idColumn = idColumns[ii];
+        // Build a targeted payload with only essential fields
+        var discountPct = toNumber(product.discountPercent || product.discount_percent || product.discount);
+        var thePrice = toNumber(product.price);
+        var finalPrice = discountPct > 0 ? thePrice - (thePrice * discountPct) / 100 : thePrice;
+        var imgs = mapInputImages(product.images);
+
+        // Build payload with keepEmpty to clear removed images/video
+        var safePayload = cleanPayload({
+          name: product.name,
+          product_name: product.name,
+          price: thePrice,
+          discount_percent: discountPct,
+          discount: discountPct,
+          price_after_discount: finalPrice,
+          final_price: finalPrice,
+          discounted_price: finalPrice,
+          sale_price: finalPrice,
+          quantity: toNumber(product.quantity),
+          stock: toNumber(product.quantity),
+          description: product.description,
+          category: product.category,
+          image: imgs[0] || "",
+          img1: imgs[0] || "",
+          video_url: safeText(product.videoUrl || product.video_url || ""),
+          owner_email: ownerEmail,
+          seller_email: ownerEmail,
+          phone: safeText(product.phone || owner.phone || ""),
+          owner_phone: safeText(product.phone || owner.phone || ""),
+          updated_at: new Date().toISOString(),
+          review_status: "pending",
+        }, { keepEmpty: true });
+
+        // Add all 8 image slots — including empty ones to clear removed images
+        for (var imgIdx = 0; imgIdx < 8; imgIdx++) {
+          var val = imgIdx < imgs.length ? imgs[imgIdx] : "";
+          var colNum = imgIdx + 1;
+          if (colNum > 1) {
+            safePayload["image" + colNum] = val;
+            safePayload["img" + colNum] = val;
+          }
+        }
+
+        // Filter payload to only known columns
+        if (Array.isArray(tableColumns)) {
+          var filteredPayload = {};
+          Object.keys(safePayload).forEach(function(key) {
+            var colKey = key.toLowerCase();
+            var found = false;
+            for (var ci = 0; ci < tableColumns.length; ci++) {
+              if (String(tableColumns[ci]).toLowerCase() === colKey) {
+                found = true;
+                break;
+              }
+            }
+            if (found) filteredPayload[key] = safePayload[key];
+          });
+          safePayload = filteredPayload;
+        }
+
+        if (!Object.keys(safePayload).length) continue;
+
+        var updateResult = await client.from(targetTable).update(safePayload).eq(idColumn, cleanProductId).eq("owner_email", ownerEmail).select("*").limit(1);
+
+        if (!updateResult.error && Array.isArray(updateResult.data) && updateResult.data.length) {
+          mutationQueryCache[targetTable] = { idColumn: idColumn, ownerColumn: "owner_email", ownerValue: ownerEmail };
+          return true;
+        }
+        if (updateResult.error) {
+          lastError = updateResult.error;
+          console.error("UPDATE_FAIL", { table: targetTable, idColumn: idColumn, productId: cleanProductId, ownerEmail: ownerEmail, code: updateResult.error.code, message: updateResult.error.message, details: updateResult.error.details });
+        }
       }
     }
 
+    console.error("ALL_UPDATE_FAILED", { lastErrorCode: lastError?.code, lastErrorMessage: lastError?.message, lastErrorDetails: lastError?.details });
     throw lastError || new Error("Product not found or not owned by this user.");
   }
 
   async function deleteProduct(productId, ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
     await assertPartnerApprovedForProductMutations(owner);
-    if (isLocalOwner(owner)) {
-      const id = safeText(productId);
-      const rows = readLocalProducts();
-      const filtered = rows.filter((item) => String(item.id) !== id);
-      if (filtered.length === rows.length) throw new Error("Product not found or not owned by this user.");
-      writeLocalProducts(filtered);
-      return true;
-    }
     if (!owner.id && !owner.email) throw new Error("Authenticated owner is required.");
 
-    const tables = await resolveAvailableProductTables();
-    const reviewTable = await resolveReviewProductTable(tables[0] || "");
-    const allTables = Array.from(new Set([...tables, reviewTable].filter(Boolean)));
     const cleanProductId = safeText(productId);
     if (!cleanProductId) throw new Error("productId is required.");
 
-    let sourceRow = null;
-    let lastError = null;
-
-    for (const table of allTables) {
-      const probe = await findOwnedProductRowById(table, cleanProductId, owner);
-      if (probe.row) {
-        sourceRow = probe.row;
-        break;
+    // Local product → delete from localStorage only, skip Supabase entirely
+    if (cleanProductId.startsWith("local_")) {
+      if (isLocalOwner(owner)) {
+        const rows = readLocalProducts();
+        const filtered = rows.filter((item) => String(item.id) !== cleanProductId);
+        if (filtered.length < rows.length) {
+          writeLocalProducts(filtered);
+          return true;
+        }
       }
-      lastError = probe.error || lastError;
+      throw new Error("Local product not found or not owned by this user.");
     }
 
-    const fingerprint = sourceRow ? buildProductDeleteFingerprint(sourceRow) : null;
+    // Try Supabase tables
+    const tables = await resolveAvailableProductTables();
+    const reviewTable = await resolveReviewProductTable(tables[0] || "");
+    const allTables = Array.from(new Set([...tables, reviewTable].filter(Boolean)));
+    let lastError = null;
     let deletedAny = false;
 
     for (const table of allTables) {
@@ -2351,25 +2699,21 @@
 
       if (result.done) {
         deletedAny = true;
-        continue;
+      } else {
+        lastError = result.error || lastError;
       }
-      lastError = result.error || lastError;
-
-      if (!fingerprint) continue;
-      const mirrored = await tryDeleteProductByFingerprint({
-        table,
-        owner,
-        fingerprint,
-      });
-      if (mirrored.done) {
-        deletedAny = true;
-        continue;
-      }
-      lastError = mirrored.error || lastError;
     }
 
-    if (deletedAny) {
-      return true;
+    if (deletedAny) return true;
+
+    // Fallback: try localStorage (for local auth users)
+    if (isLocalOwner(owner)) {
+      const rows = readLocalProducts();
+      const filtered = rows.filter((item) => String(item.id) !== cleanProductId);
+      if (filtered.length < rows.length) {
+        writeLocalProducts(filtered);
+        return true;
+      }
     }
 
     throw lastError || new Error("Product not found or not owned by this user.");
@@ -2377,75 +2721,80 @@
 
   async function getProductsForOwner(ownerInput = null) {
     const owner = await resolveOwnerContext(ownerInput);
-    if (isLocalOwner(owner)) {
-      const email = normalizeEmail(owner.email || "");
-      const rows = readLocalProducts().filter((item) => {
-        const itemEmail = normalizeEmail(item.email || "");
-        return !email || !itemEmail || itemEmail === email;
-      });
-      return sortProducts(rows);
-    }
     if (!owner.id && !owner.email) return [];
 
+    const client = getClient();
     const tables = await resolveAvailableProductTables();
     const reviewTable = await resolveReviewProductTable(tables[0] || "");
     const allTables = Array.from(new Set([...tables, reviewTable].filter(Boolean)));
-    const client = getClient();
     const mergedMap = new Map();
 
     for (const table of allTables) {
       const collectedRows = [];
       let lastError = null;
-      let matchedQuery = false;
 
-      const queries = [];
-      if (owner.id) {
-        PRODUCT_OWNER_ID_COLUMNS.forEach((column) => {
-          queries.push(() => client.from(table).select("*").eq(column, owner.id));
-        });
-      }
-      if (owner.email) {
-        PRODUCT_OWNER_EMAIL_COLUMNS.forEach((column) => {
-          queries.push(() => client.from(table).select("*").eq(column, owner.email));
-        });
-      }
-
-      for (const run of queries) {
-        const result = await run();
-        if (!result.error) {
-          matchedQuery = true;
-          if (Array.isArray(result.data) && result.data.length) {
-            collectedRows.push(...result.data);
-          }
-          continue;
-        }
-        const error = result.error;
-        lastError = error;
-        if (isMissingColumnError(error) || isTypeMismatchError(error) || isAuthPermissionError(error)) continue;
-      }
-
-      if (!matchedQuery) {
-        const result = await client.from(table).select("*");
-        if (!result.error) {
-          if (Array.isArray(result.data) && result.data.length) {
-            collectedRows.push(...result.data);
-          }
+      const cacheKey = state.productQueryCache[table];
+      if (cacheKey) {
+        let result;
+        if (cacheKey.column) {
+          result = await client.from(table).select("*").eq(cacheKey.column, cacheKey.value);
         } else {
+          result = await client.from(table).select("*");
+        }
+        if (!result.error) {
+          collectedRows.push(...(Array.isArray(result.data) ? result.data : []));
+        }
+      } else {
+        let matchedQuery = false;
+        const queries = [];
+        if (owner.id) {
+          PRODUCT_OWNER_ID_COLUMNS.forEach((column) => {
+            queries.push({ column, value: owner.id, run: () => client.from(table).select("*").eq(column, owner.id) });
+          });
+        }
+        if (owner.email) {
+          PRODUCT_OWNER_EMAIL_COLUMNS.forEach((column) => {
+            queries.push({ column, value: owner.email, run: () => client.from(table).select("*").eq(column, owner.email) });
+          });
+        }
+
+        for (const q of queries) {
+          const result = await q.run();
+          if (!result.error) {
+            matchedQuery = true;
+            if (Array.isArray(result.data) && result.data.length) {
+              collectedRows.push(...result.data);
+            }
+            state.productQueryCache[table] = { column: q.column, value: q.value };
+            break;
+          }
           const error = result.error;
           lastError = error;
-          if (!isMissingColumnError(error) && !isTypeMismatchError(error) && !isAuthPermissionError(error)) {
-            console.warn("getProductsForOwner fallback failed", {
-              table,
-              status: Number(error?.status || 0) || undefined,
-              code: safeText(error?.code || ""),
-              message: safeText(error?.message || ""),
-            });
+          if (isMissingColumnError(error) || isTypeMismatchError(error) || isAuthPermissionError(error)) continue;
+        }
+
+        if (!matchedQuery) {
+          const result = await client.from(table).select("*").limit(4000);
+          if (!result.error) {
+            state.productQueryCache[table] = { column: null, value: null };
+            if (Array.isArray(result.data) && result.data.length) {
+              collectedRows.push(...result.data);
+            }
+          } else {
+            const error = result.error;
+            lastError = error;
+            if (!isMissingColumnError(error) && !isTypeMismatchError(error) && !isAuthPermissionError(error)) {
+              console.warn("getProductsForOwner fallback failed", {
+                table,
+                status: Number(error?.status || 0) || undefined,
+                code: safeText(error?.code || ""),
+                message: safeText(error?.message || ""),
+              });
+            }
           }
         }
-      }
 
-      if (!collectedRows.length) {
-        if (lastError && !isMissingColumnError(lastError) && !isTypeMismatchError(lastError) && !isAuthPermissionError(lastError)) {
+        if (!collectedRows.length && lastError && !isMissingColumnError(lastError) && !isTypeMismatchError(lastError) && !isAuthPermissionError(lastError)) {
           console.warn("getProductsForOwner query failed", {
             table,
             status: Number(lastError?.status || 0) || undefined,
@@ -2453,8 +2802,9 @@
             message: safeText(lastError?.message || ""),
           });
         }
-        continue;
       }
+
+      if (!collectedRows.length) continue;
 
       const dedupRows = [];
       const seenRowKeys = new Set();
@@ -2475,10 +2825,54 @@
         });
     }
 
-    const out = Array.from(mergedMap.values());
-    out.sort((a, b) => {
-      const dateA = Date.parse(a.updatedAt || a.createdAt || "") || 0;
-      const dateB = Date.parse(b.updatedAt || b.createdAt || "") || 0;
+    // Link products via legacy_my_products_id to merge duplicates across tables
+    const idToKey = new Map();
+    const legacyToKey = new Map();
+    for (const [key, product] of mergedMap) {
+      if (product.id) idToKey.set(product.id, key);
+      if (product.legacyMyProductId) legacyToKey.set(product.legacyMyProductId, key);
+    }
+    for (const [legacyId, legacyKey] of legacyToKey) {
+      const idKey = idToKey.get(legacyId);
+      if (idKey && idKey !== legacyKey) {
+        const merged = mergeProductRecords(mergedMap.get(idKey), mergedMap.get(legacyKey));
+        mergedMap.set(idKey, merged);
+        mergedMap.delete(legacyKey);
+      }
+    }
+
+    // If Supabase returned zero rows, fallback to local products (for local/simple auth users)
+    if (!mergedMap.size && isLocalOwner(owner)) {
+      const email = normalizeEmail(owner.email || "");
+      const rows = readLocalProducts().filter((item) => {
+        const itemEmail = normalizeEmail(item.email || "");
+        return !email || !itemEmail || itemEmail === email;
+      });
+      // Local products are treated as auto-approved (no admin workflow)
+      return sortProducts(rows).map(p => ({ ...p, reviewStatus: 'reviewed' }));
+    }
+
+    var out = Array.from(mergedMap.values());
+
+    var dedupByName = new Map();
+    out.forEach(function(p) {
+      var name = (p.name || "").toLowerCase().trim();
+      var email = (p.email || "").toLowerCase().trim();
+      if (name && email) {
+        var key = name + "|" + email;
+        var existing = dedupByName.get(key);
+        if (!existing || (p.sourceTable === "my_products" && existing.sourceTable !== "my_products") || productReviewStatusRank(p.reviewStatus) > productReviewStatusRank(existing.reviewStatus)) {
+          dedupByName.set(key, p);
+        }
+      } else {
+        dedupByName.set("uniq_" + Math.random(), p);
+      }
+    });
+    out = Array.from(dedupByName.values());
+
+    out.sort(function(a, b) {
+      var dateA = Date.parse(a.updatedAt || a.createdAt || "") || 0;
+      var dateB = Date.parse(b.updatedAt || b.createdAt || "") || 0;
       if (dateA !== dateB) return dateB - dateA;
       return toNumber(b.id) - toNumber(a.id);
     });
@@ -2754,6 +3148,7 @@
     const candidates = [];
     const sourceValues = [
       row.items,
+      row.items_json,
       row.order_items,
       row.orderItems,
       row.products,
@@ -2762,6 +3157,11 @@
       row.order_details,
       row.orderDetails,
       row.details,
+      row.type,
+      row.type_snapshot,
+      row.order_type,
+      row.items_snapshot,
+      row.order_snapshot,
     ];
 
     sourceValues.forEach((value) => {
@@ -3145,6 +3545,23 @@
     return owned;
   }
 
+  async function fetchAllRows(client, table, pageSize = 1000) {
+    const all = [];
+    let offset = 0;
+    while (true) {
+      const { data, error } = await client.from(table).select("*").range(offset, offset + pageSize - 1);
+      if (error) {
+        if (isAuthPermissionError(error)) return all;
+        return all;
+      }
+      const batch = Array.isArray(data) ? data : [];
+      all.push(...batch);
+      if (batch.length < pageSize) break;
+      offset += pageSize;
+    }
+    return all;
+  }
+
   async function getPartnerOrdersFromLinkedItems(ownerCandidates = {}) {
     const client = getClient();
     const orderItemTables = await resolveAvailableOrderItemTables();
@@ -3154,13 +3571,7 @@
     const productIds = new Set();
 
     for (const table of orderItemTables) {
-      const { data, error } = await client.from(table).select("*").limit(4000);
-      if (error) {
-        if (isAuthPermissionError(error)) continue;
-        continue;
-      }
-
-      const rows = Array.isArray(data) ? data : [];
+      const rows = await fetchAllRows(client, table);
       rows.forEach((row) => {
         const orderId = safeText(pickFirst(row, [...ORDER_ITEM_ORDER_ID_COLUMNS, ...ORDER_ID_COLUMNS], ""));
         if (!orderId) return;
@@ -3258,13 +3669,7 @@
     const directRows = [];
     const allOrderRows = [];
     for (const table of orderTables) {
-      const { data, error } = await client.from(table).select("*").limit(1000);
-      if (error) {
-        if (isAuthPermissionError(error)) continue;
-        continue;
-      }
-
-      const rows = Array.isArray(data) ? data : [];
+      const rows = await fetchAllRows(client, table);
       rows.forEach((row) => allOrderRows.push(row));
       const filtered = rows.filter((row) => rowBelongsToOrderOwner(row, ownerCandidates));
       filtered.forEach((row) => directRows.push(row));
@@ -3325,13 +3730,7 @@
 
     const orderItemTables = await resolveAvailableOrderItemTables();
     for (const table of orderItemTables) {
-      const { data, error } = await client.from(table).select("*").limit(2000);
-      if (error) {
-        if (isAuthPermissionError(error)) continue;
-        continue;
-      }
-
-      const rows = Array.isArray(data) ? data : [];
+      const rows = await fetchAllRows(client, table, 2000);
       const itemProductIds = [
         ...new Set(
           rows
@@ -3573,7 +3972,95 @@
     return false;
   }
 
+  async function getPartnerOrdersByProductScan(owner, ownerCandidates) {
+    const client = getClient();
+    const partnerProducts = await getProductsForOwner(owner);
+    if (!Array.isArray(partnerProducts) || !partnerProducts.length) return [];
+    const productIdSet = new Set(partnerProducts.map((p) => safeText(p.id)).filter(Boolean));
+
+    const orderTables = await resolveAvailableOrderTables();
+    const matchedOrders = [];
+
+    for (const table of orderTables) {
+      const allRows = await fetchAllRows(client, table);
+      allRows.forEach((row) => {
+        const orderId = safeText(pickFirst(row, ORDER_ID_COLUMNS, ""));
+        if (!orderId) return;
+        const productIds = extractOrderRowProductIds(row);
+        if (!productIds.some((pid) => productIdSet.has(pid))) return;
+        const normalized = normalizeOrderBaseRecord(row, orderId);
+        matchedOrders.push(normalized);
+      });
+    }
+
+    return sortNormalizedOrders(matchedOrders.map((order) => normalizeOrderForMerge(order)));
+  }
+
+  function mapOrderRow(row) {
+    var items = [];
+    try {
+      var typeData = typeof row.type === "string" ? JSON.parse(row.type) : (row.type || {});
+      if (typeData && typeof typeData === "object") {
+        var qty = Number(typeData.quantity || 1) || 1;
+        var price = Number(typeData.price || 0) || 0;
+        items.push({
+          productId: String(typeData.product_id || typeData.id || ""),
+          name: String(typeData.name || typeData.product_name || ""),
+          image: String(typeData.image || typeData.product_image || typeData.images || ""),
+          quantity: qty,
+          price: price,
+          lineTotal: qty * price,
+        });
+      }
+    } catch(e) {}
+    return {
+      id: String(row.id || ""),
+      status: normalizeOrderStatus(row.status || "pending"),
+      createdAt: String(row.created_at || row.createdAt || ""),
+      customerName: String(row.user_name || row.name || row.customer_name || ""),
+      customerEmail: String(row.user_email || row.email || row.customer_email || ""),
+      customerPhone: String(row.phone || row.customer_phone || ""),
+      address: String(row.address || row.customer_address || ""),
+      total: Number(row.total_price || row.total || row.amount || 0) || 0,
+      items: items,
+      _typeData: items.length ? null : null,
+    };
+  }
+
+  async function fetchOrdersByEmail(partnerEmail) {
+    partnerEmail = normalizeEmail(partnerEmail || "");
+    if (!partnerEmail) return [];
+    try {
+      var client = getClient();
+      var allRes = await client.from("orders").select("*").limit(2000);
+      if (!allRes.error && Array.isArray(allRes.data) && allRes.data.length) {
+        var sellerOrders = [];
+        allRes.data.forEach(function(row) {
+          try {
+            var typeData = typeof row.type === "string" ? JSON.parse(row.type) : (row.type || {});
+            if (typeData && typeof typeData === "object") {
+              var rowSellerEmail = normalizeEmail(typeData.seller_email || "");
+              if (rowSellerEmail && rowSellerEmail === partnerEmail) {
+                sellerOrders.push(mapOrderRow(row));
+              }
+            }
+          } catch(e) {}
+        });
+        if (sellerOrders.length) return sellerOrders;
+      }
+    } catch (allError) {
+      console.warn("fetchOrdersByEmail type scan failed", allError);
+    }
+    return [];
+  }
+
   async function getPartnerOrders(ownerInput = null) {
+    if (typeof ownerInput === "string" && ownerInput.trim()) {
+      var directEmail = normalizeEmail(ownerInput);
+      if (directEmail) {
+        return await fetchOrdersByEmail(directEmail);
+      }
+    }
     const owner = await resolveOwnerContext(ownerInput);
     if (isLocalOwner(owner)) {
       const localOrders = readStorageJSON(LOCAL_KEYS.orders, []);
@@ -3585,6 +4072,12 @@
       id: safeText(resolvedOwner.id || owner.id),
       email: normalizeEmail(resolvedOwner.email || owner.email),
     });
+
+    var partnerEmail = normalizeEmail(resolvedOwner.email || owner.email);
+    if (partnerEmail) {
+      var emailOrders = await fetchOrdersByEmail(partnerEmail);
+      if (emailOrders.length) return emailOrders;
+    }
 
     const functionNames = ["get_partner_orders", "get_seller_orders"];
     const idArgNames = ["p_seller_id", "seller_id", "p_owner_id", "owner_id", "user_id"];
@@ -3637,10 +4130,17 @@
     try {
       const tableOrders = await getPartnerOrdersFromTables(ownerCandidates);
       if (Array.isArray(tableOrders) && tableOrders.length) return tableOrders;
-      if (Array.isArray(rpcOrders) && rpcOrders.length === 0) return tableOrders;
+      if (!rpcError && Array.isArray(rpcOrders) && rpcOrders.length === 0) return tableOrders;
     } catch (tableError) {
       if (isAuthPermissionError(tableError)) throw tableError;
       if (!rpcError) rpcError = tableError;
+    }
+
+    try {
+      const directOrders = await getPartnerOrdersByProductScan(owner, ownerCandidates);
+      if (Array.isArray(directOrders) && directOrders.length) return directOrders;
+    } catch (scanError) {
+      if (!rpcError) rpcError = scanError;
     }
 
     if (rpcError) {
@@ -3654,10 +4154,27 @@
   }
 
   async function updateOrderStatus(orderId, status, ownerInput = null) {
+    const cleanOrderId = safeText(orderId);
+    const cleanStatus = normalizeOrderStatus(status);
+    if (!cleanOrderId || !cleanStatus) {
+      throw new Error("orderId and status are required.");
+    }
+
+    try {
+      var client = getClient();
+      var directResult = await client.from("orders").update({ status: cleanStatus }).eq("id", cleanOrderId).select("*").limit(1);
+      if (!directResult.error && Array.isArray(directResult.data) && directResult.data.length) {
+        return true;
+      }
+    } catch (directErr) {}
+    try {
+      var rpcClient = getClient();
+      var rpcResult = await rpcClient.rpc("update_order_status", { p_order_id: cleanOrderId, p_status: cleanStatus });
+      if (!rpcResult.error) return true;
+    } catch (rpcErr) {}
+
     const owner = await resolveOwnerContext(ownerInput);
     if (isLocalOwner(owner)) {
-      const cleanOrderId = safeText(orderId);
-      const cleanStatus = normalizeOrderStatus(status);
       const rows = readStorageJSON(LOCAL_KEYS.orders, []);
       const list = Array.isArray(rows) ? rows : [];
       const idx = list.findIndex((item) => String(item.id) === cleanOrderId);
@@ -3665,12 +4182,6 @@
       list[idx] = { ...list[idx], status: cleanStatus };
       writeStorageJSON(LOCAL_KEYS.orders, list);
       return true;
-    }
-
-    const cleanOrderId = safeText(orderId);
-    const cleanStatus = normalizeOrderStatus(status);
-    if (!cleanOrderId || !cleanStatus) {
-      throw new Error("orderId and status are required.");
     }
 
     const resolvedOwner = await resolveProductOwnerForInsert(owner);

@@ -869,7 +869,9 @@
         return;
       }
       notify("تم تسجيل الدخول بنجاح.", "success");
-      setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
+      window.PartnerSession.syncPartnerAccount(email, "", "").then(function() {
+        window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts);
+      });
       return;
     }
 
@@ -905,7 +907,10 @@
         const legacyLoggedIn = await tryLegacyDirectoryLogin(email, passwordCandidates);
         if (legacyLoggedIn) {
           notify("Login successful.", "success");
-          setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
+          var legacyUser = window.PartnerSession.getCurrentUser();
+          window.PartnerSession.syncPartnerAccount(email, legacyUser?.name || "", legacyUser?.id || "").then(function() {
+            window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts);
+          });
           return;
         }
         registerLoginFailure();
@@ -922,7 +927,10 @@
       }
 
       notify("تم تسجيل الدخول بنجاح.", "success");
-      setTimeout(() => window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts), 450);
+      var syncEmail = currentUser.email || email;
+      window.PartnerSession.syncPartnerAccount(syncEmail, currentUser.name || "", currentUser.id || "").then(function() {
+        window.PartnerSession.goTo(window.APP_ROUTES.dashboardProducts);
+      });
     } catch (error) {
       if (isRateLimitError(error)) {
         notify("تعذر تسجيل الدخول الآن. حاول مرة أخرى.", "error");

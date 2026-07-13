@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>إدارة المنتجات - Buda</title>
+  <link href="../assets/fonts/cairo.css" rel="stylesheet" />
+  <link href="../assets/fonts/inter.css" rel="stylesheet" />
+  <link href="../assets/fonts/material-icons-outlined.css" rel="stylesheet" />
+  <link href="../assets/css/noon-theme.css" rel="stylesheet" />
+  <link href="../assets/css/noon-shell.css" rel="stylesheet" />
+  <link href="../assets/css/noon-components.css" rel="stylesheet" />
+  <link rel="icon" type="image/x-icon" href="../assets/icons/favicon.ico" />
+  <style>
+    :root{--side-bg:#0f172a;--side-hover:#1e293b;--side-text:#94a3b8;--side-active:#facc15;--radius:8px}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Cairo',sans-serif;background:#f1f5f9;color:#0f172a;-webkit-font-smoothing:antialiased}
+    .app-layout{display:flex;min-height:100vh}
+    .sidebar{width:260px;background:var(--side-bg);color:#fff;padding:24px 0;position:fixed;top:0;right:0;bottom:0;overflow-y:auto;z-index:100;display:flex;flex-direction:column}
+    .sidebar .brand{padding:0 24px 24px;border-bottom:1px solid #1e293b;font-size:1.15rem;font-weight:800;color:var(--side-active);display:flex;align-items:center;gap:10px}
+    .sidebar nav{padding:8px 0;flex:1}
+    .sidebar a{display:flex;align-items:center;gap:12px;padding:12px 24px;color:var(--side-text);text-decoration:none;font-size:.9rem;font-weight:500;transition:all .15s ease;border-right:3px solid transparent}
+    .sidebar a:hover{background:var(--side-hover);color:#e2e8f0;border-right-color:rgba(250,204,21,.4)}
+    .sidebar a.active{background:var(--side-hover);color:#fff;border-right-color:var(--side-active)}
+    .sidebar a .material-icons-outlined{font-size:20px}
+    .main-content{margin-right:260px;flex:1;padding:28px;max-width:calc(100vw - 260px)}
+    .page-header h1{font-size:1.5rem;font-weight:800;color:#0f172a;margin:0 0 4px}
+    .page-header p{color:#64748b;font-size:.85rem;margin:0}
+    .tabs{display:flex;gap:4px;margin-bottom:20px;border-bottom:2px solid #e2e8f0}
+    .tab{padding:10px 20px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-2px;font-weight:600;font-size:.85rem;color:#64748b;transition:color .15s,border-color .15s;user-select:none}
+    .tab:hover{color:#334155}
+    .tab.active{color:#0f172a;border-bottom-color:#0f172a;font-weight:700}
+    .search-row{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+    .search-row input{flex:1;min-width:200px;padding:10px 14px;border:1.5px solid #e2e8f0;border-radius:var(--radius);font-size:.9rem;font-family:inherit;transition:border-color .15s,box-shadow .15s;background:#fff}
+    .search-row input::placeholder{color:#94a3b8}
+    .search-row input:focus{border-color:#0f172a;outline:none;box-shadow:0 0 0 3px rgba(15,23,42,.1)}
+    .search-row input:hover{border-color:#cbd5e1}
+    table{width:100%;border-collapse:separate;border-spacing:0;font-size:.82rem;background:#fff;border-radius:var(--radius);overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.06)}
+    th{background:#f8fafc;padding:12px 10px;border-bottom:2px solid #e2e8f0;color:#475569;font-weight:700;text-align:right;font-size:.8rem;white-space:nowrap}
+    td{padding:10px;border-bottom:1px solid #f1f5f9;vertical-align:middle;transition:background .12s}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#f8fafc}
+    td img{width:40px;height:40px;border-radius:var(--radius);object-fit:cover;background:#f1f5f9}
+    .price-input{width:88px;padding:6px 8px;border:1.5px solid #e2e8f0;border-radius:6px;font-size:.82rem;text-align:center;font-family:inherit;transition:border-color .15s,box-shadow .15s;background:#fff}
+    .price-input:focus{border-color:#0f172a;outline:none;box-shadow:0 0 0 3px rgba(15,23,42,.1)}
+    .price-input:hover{border-color:#cbd5e1}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:0;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s ease;line-height:1.4;user-select:none}
+    .btn:active{transform:scale(.96)}
+    .btn-primary{background:#0f172a;color:#fff}
+    .btn-primary:hover{background:#1e293b}
+    .btn-outline{background:transparent;border:1.5px solid #e2e8f0;color:#475569}
+    .btn-outline:hover{background:#f8fafc;border-color:#cbd5e1;color:#0f172a}
+    .btn-sm{padding:4px 10px;font-size:.75rem}
+    .btn-danger{background:#ef4444;color:#fff}
+    .btn-danger:hover{background:#dc2626}
+    .pagination{display:flex;align-items:center;justify-content:center;gap:10px;margin-top:20px}
+    .pagination .btn-outline{padding:6px 14px}
+    .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:#0f172a;color:#fff;padding:12px 24px;border-radius:var(--radius);font-size:.85rem;z-index:9999;animation:fadeIn .3s ease;box-shadow:0 4px 16px rgba(0,0,0,.2)}
+    @keyframes fadeIn{from{opacity:0;transform:translateX(-50%) translateY(16px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+    .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:.68rem;font-weight:700;line-height:1.5}
+    .badge-taager{background:#fef3c7;color:#b45309}
+    .badge-partner{background:#dbeafe;color:#1d4ed8}
+    .badge-local{background:#dcfce7;color:#15803d}
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="material-icons-outlined" aria-hidden="true">dashboard</span> Buda Admin</div>
+      <nav>
+        <a href="admin-sections.html"><span class="material-icons-outlined" aria-hidden="true">view_carousel</span> أقسام الهوم</a>
+        <a href="manage-products.html" class="active" aria-current="page"><span class="material-icons-outlined" aria-hidden="true">inventory</span> إدارة المنتجات</a>
+        <a href="review-partnership.html"><span class="material-icons-outlined" aria-hidden="true">handshake</span> مراجعة الشراكه</a>
+        <a href="home.html" style="margin-top:auto;border-top:1px solid #1e293b;padding-top:16px"><span class="material-icons-outlined" aria-hidden="true">arrow_back</span> العودة للموقع</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="page-header">
+        <h1>إدارة المنتجات</h1>
+        <p>بحث وتعديل الأسعار والخصومات</p>
+      </div>
+      <div class="tabs" id="mainTabs">
+        <span class="tab active" onclick="switchTab('store',this)">المتجر</span>
+        <span class="tab" onclick="switchTab('taager',this)">تاجر</span>
+        <span class="tab" onclick="switchTab('partner',this)">شركاء</span>
+        <span class="tab" onclick="switchTab('all',this)">الكل</span>
+      </div>
+      <div class="search-row">
+        <input id="searchInput" type="text" placeholder="ابحث باسم المنتج أو الكود..." oninput="debouncedSearch()" />
+        <button class="btn btn-outline" onclick="loadTab()" aria-label="بحث"><span class="material-icons-outlined" style="font-size:16px" aria-hidden="true">search</span> بحث</button>
+        <button class="btn btn-outline" onclick="saveAllPrices()" aria-label="حفظ الكل"><span class="material-icons-outlined" style="font-size:16px" aria-hidden="true">save</span> حفظ الكل</button>
+      </div>
+      <div id="tableWrap"><p style="color:#94a3b8;">جارٍ التحميل...</p></div>
+      <div class="pagination" id="pagination"></div>
+    </main>
+  </div>
+  <script src="../assets/vendor/supabase/supabase-js@2.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script>
+    var currentTab = 'store', searchQuery = '', page = 0, pageSize = 30;
+    var storePool = [], taagerPool = [], partnerPool = [];
+    var modifiedPrices = {};
+    function getClient() { return window.supabaseClient; }
+    function esc(v) { return String(v||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];}); }
+    async function init() {
+      storePool = Object.values(window.BudaStore?.getAllProducts() || {}).filter(Boolean);
+      try {
+        var c = getClient();
+        if (c) {
+          var {data:tp} = await c.from('taager_products').select('id,taager_product_id,name,price,image,category,quick_details').eq('is_active',true).limit(2000);
+          if (tp) taagerPool = tp.map(function(p){return {id:'taager_taager_'+p.taager_product_id, name:p.name||'منتج', price:p.price, image:p.image||'', category:p.category, source:'taager', _raw:p, _original_price: 0};});
+          var {data:pp} = await c.from('partner_products').select('id,name,price,image,category').limit(500);
+          if (pp) partnerPool = pp.map(function(p){return {id:p.id, name:p.name||'منتج', price:p.price, image:p.image||'', category:p.category, source:'partner'};});
+        }
+      } catch(e) { console.warn(e); }
+      loadTab();
+    }
+    function switchTab(tab, el) {
+      currentTab = tab; page = 0; searchQuery = document.getElementById('searchInput').value;
+      document.querySelectorAll('#mainTabs .tab').forEach(function(t){t.classList.remove('active');});
+      if (el) el.classList.add('active');
+      loadTab();
+    }
+    function loadTab() {
+      searchQuery = document.getElementById('searchInput').value;
+      var pool = currentTab === 'taager' ? taagerPool : (currentTab === 'partner' ? partnerPool : (currentTab === 'all' ? [...storePool, ...taagerPool, ...partnerPool] : storePool));
+      if (searchQuery.trim()) {
+        var q = searchQuery.trim().toLowerCase();
+        pool = pool.filter(function(p){return (p.name||'').toLowerCase().includes(q) || String(p.id).includes(q) || String(p.price).includes(q);});
+      }
+      var start = page * pageSize, pg = pool.slice(start, start + pageSize);
+      if (!pg.length && page > 0) { page = 0; return loadTab(); }
+      document.getElementById('tableWrap').innerHTML =
+        '<table><thead><tr><th></th><th>المنتج</th><th>السعر</th><th>الخصم</th><th>حفظ</th></tr></thead><tbody>' +
+        pg.map(function(p,i){
+          var mod = modifiedPrices[p.id] || {};
+          var price = mod.price !== undefined ? mod.price : p.price;
+          var orig = window.BudaStore ? window.BudaStore.resolveProductPrice(p).originalPrice : price;
+          var op = (mod.original_price !== undefined ? mod.original_price : (orig > price ? orig : price * 1.25));
+          var img = p.image || '../assets/images/unnamed.png';
+          var srcBadge = p.source === 'taager' ? 'badge-taager' : (p.source === 'partner' ? 'badge-partner' : 'badge-local');
+          var srcLabel = p.source === 'taager' ? 'تاجر' : (p.source === 'partner' ? 'شريك' : 'محلي');
+          return '<tr>' +
+            '<td><img src="'+img+'" onerror="this.src=\'../assets/images/unnamed.png\'" alt=""/></td>' +
+            '<td><div style="font-weight:600;font-size:.85rem">'+esc(p.name||p.id)+'</div><div style="font-size:.7rem;color:#94a3b8">'+esc(p.id)+' <span class="badge '+srcBadge+'">'+srcLabel+'</span></div></td>' +
+            '<td><input class="price-input" type="number" step="0.01" value="'+Number(price).toFixed(2)+'" onchange="updatePrice(\''+p.id+'\',this.value,\'price\')"/></td>' +
+            '<td><input class="price-input" type="number" step="0.01" value="'+Number(op).toFixed(2)+'" onchange="updatePrice(\''+p.id+'\',this.value,\'original\')"/></td>' +
+            '<td>'+(mod.price !== undefined || mod.original_price !== undefined ? '<button class="btn btn-primary btn-sm" onclick="saveSingle(\''+p.id+'\')">حفظ</button>' : '—')+'</td></tr>';
+        }).join('') + '</tbody></table>' +
+        '<div style="margin-top:8px;font-size:.8rem;color:#64748b">إجمالي: '+pool.length+' منتج</div>';
+      var tp = Math.ceil(pool.length / pageSize);
+      document.getElementById('pagination').innerHTML =
+        (page > 0 ? '<button class="btn btn-outline btn-sm" onclick="page--;loadTab()">السابق</button>' : '') +
+        '<span style="font-size:.8rem;color:#64748b">'+(page+1)+'/'+tp+'</span>' +
+        (start+pageSize < pool.length ? '<button class="btn btn-outline btn-sm" onclick="page++;loadTab()">التالي</button>' : '');
+    }
+    function updatePrice(id, val, type) {
+      if (!modifiedPrices[id]) modifiedPrices[id] = {};
+      modifiedPrices[id][type === 'price' ? 'price' : 'original_price'] = parseFloat(val) || 0;
+      loadTab();
+    }
+    async function saveSingle(id) {
+      var mod = modifiedPrices[id];
+      if (!mod) return;
+      try {
+        var c = getClient();
+        if (!c) return;
+        if (mod.original_price > 0) {
+          var p = taagerPool.find(function(x){return x.id===id;}) || storePool.find(function(x){return x.id===id;});
+          await c.from('product_original_prices').upsert({product_id: id, product_name: p ? p.name : '', product_price: mod.price || 0, fake_original_price: mod.original_price, updated_at: new Date().toISOString()}, {onConflict: 'product_id'});
+        }
+        delete modifiedPrices[id];
+        toast('تم الحفظ');
+        loadTab();
+      } catch(e) { toast('خطأ: '+e.message); }
+    }
+    async function saveAllPrices() {
+      var ids = Object.keys(modifiedPrices);
+      if (!ids.length) { toast('لا توجد تغييرات للحفظ'); return; }
+      try {
+        var c = getClient(); if (!c) return;
+        for (var i = 0; i < ids.length; i++) {
+          var id = ids[i], mod = modifiedPrices[id];
+          if (mod.original_price > 0) {
+            var p = taagerPool.find(function(x){return x.id===id;}) || storePool.find(function(x){return x.id===id;});
+            await c.from('product_original_prices').upsert({product_id: id, product_name: p ? p.name : '', product_price: mod.price || 0, fake_original_price: mod.original_price, updated_at: new Date().toISOString()}, {onConflict: 'product_id'});
+          }
+        }
+        modifiedPrices = {};
+        toast('تم حفظ ' + ids.length + ' منتج');
+        loadTab();
+      } catch(e) { toast('خطأ: '+e.message); }
+    }
+    var debouncedSearch = (function(){var t;return function(){clearTimeout(t);t=setTimeout(function(){page=0;loadTab();},400);};})();
+    function toast(m){var el=document.createElement('div');el.className='toast';el.textContent=m;document.body.appendChild(el);setTimeout(function(){el.remove();},2500);}
+    setTimeout(init, 500);
+  </script>
+</body>
+</html>
+
+

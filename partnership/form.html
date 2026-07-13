@@ -3,21 +3,20 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>طلب الشراكة - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-1" />
 </head>
-<body>
+<body data-page="partnership-form">
   <header class="topbar">
     <div class="topbar-inner">
       <strong class="brand-title">Buda Partner Portal</strong>
       <div class="topbar-actions">
-        <a class="btn btn-secondary" href="../auth/login.html">تسجيل الدخول</a>
+        <a class="btn-secondary" href="../auth/login.html">تسجيل الدخول</a>
       </div>
     </div>
   </header>
-
   <main class="page-wrap stack">
     <section class="section-card">
       <div class="section-head">
@@ -25,9 +24,7 @@
       </div>
       <p class="muted">أكمل البيانات التالية لإرسال طلب الشراكة. سنراجع الطلب ونرد عليك في أقرب وقت.</p>
     </section>
-
     <p id="partnerStatus" class="status-note hidden" aria-live="polite"></p>
-
     <section id="existingPartnerBox" class="section-card hidden">
       <div class="section-head">
         <h3>تم العثور على طلب سابق</h3>
@@ -37,87 +34,74 @@
         <button id="openDashboardBtn" type="button" class="btn-primary">فتح لوحة الشريك</button>
       </div>
     </section>
-
     <section id="partnerFormCard" class="section-card">
-      <form id="partnerForm" class="portal-form">
+      <form id="partnerForm" class="portal-form" novalidate>
         <div class="field-grid">
           <div class="field">
             <label for="owner_name">اسم المالك</label>
-            <input id="owner_name" type="text" required />
+            <input id="owner_name" type="text" required autocomplete="name" />
           </div>
           <div class="field">
             <label for="owner_email">البريد الإلكتروني</label>
-            <input id="owner_email" type="email" required />
+            <input id="owner_email" type="email" required autocomplete="email" inputmode="email" />
           </div>
         </div>
-
         <div class="field-grid">
           <div class="field">
             <label for="owner_phone">رقم الهاتف</label>
-            <input id="owner_phone" type="tel" required />
+            <input id="owner_phone" type="tel" required autocomplete="tel" inputmode="tel" />
           </div>
           <div class="field">
             <label for="national_id">الرقم القومي</label>
-            <input id="national_id" type="text" maxlength="14" required />
+            <input id="national_id" type="text" maxlength="14" required inputmode="numeric" pattern="[0-9]{14}" />
           </div>
         </div>
-
         <div class="field-grid">
           <div class="field">
             <label for="store_name">اسم المتجر</label>
-            <input id="store_name" type="text" required />
+            <input id="store_name" type="text" required autocomplete="organization" />
           </div>
           <div class="field">
             <label for="store_category">نشاط المتجر</label>
-            <input id="store_category" type="text" required />
+            <input id="store_category" type="text" required autocomplete="off" />
           </div>
         </div>
-
         <div class="field">
           <label for="description">وصف المتجر</label>
-          <textarea id="description" rows="3" required></textarea>
+          <textarea id="description" rows="3" required autocomplete="off"></textarea>
         </div>
-
         <div class="field-grid">
           <div class="field">
             <label for="country">الدولة</label>
-            <input id="country" type="text" required />
+            <input id="country" type="text" required autocomplete="country-name" />
           </div>
           <div class="field">
             <label for="city">المدينة</label>
-            <input id="city" type="text" required />
+            <input id="city" type="text" required autocomplete="address-level2" />
           </div>
         </div>
-
         <div class="field-grid">
           <div class="field">
             <label for="address">العنوان</label>
-            <input id="address" type="text" required />
+            <input id="address" type="text" required autocomplete="street-address" />
           </div>
           <div class="field">
             <label for="store_phone">هاتف المتجر</label>
-            <input id="store_phone" type="tel" required />
+            <input id="store_phone" type="tel" required autocomplete="tel" inputmode="tel" />
           </div>
         </div>
-
         <button type="submit" class="btn-primary">إرسال طلب الشراكة</button>
       </form>
     </section>
   </main>
-
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260405-1"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-2"></script>
   <script src="../assets/js/session.js?v=20260326-1"></script>
   <script src="../assets/js/partnership.js?v=20260309-3"></script>
 </body>
 </html>
-
-
-
-
-
 
 
 

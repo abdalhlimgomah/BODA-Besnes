@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>إنشاء حساب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-1" />
 </head>
 <body data-page="signup">
   <main class="auth-shell">
@@ -15,21 +15,20 @@
       <h1 class="auth-title">إنشاء حساب جديد</h1>
       <p class="auth-subtitle">أنشئ حسابك ثم فعّل البريد بكود OTP للمتابعة.</p>
       <p id="auth-status" class="status-note hidden" aria-live="polite"></p>
-
-      <form id="signupForm" class="portal-form">
+      <form id="signupForm" class="portal-form" novalidate>
         <div class="field-grid">
           <div class="field">
             <label for="signupName">الاسم بالكامل</label>
-            <input id="signupName" type="text" required />
+            <input id="signupName" type="text" required autocomplete="name" />
           </div>
           <div class="field">
             <label for="signupPhone">رقم الهاتف</label>
-            <input id="signupPhone" type="tel" required />
+            <input id="signupPhone" type="tel" required autocomplete="tel" inputmode="tel" />
           </div>
         </div>
         <div class="field">
           <label for="signupEmail">البريد الإلكتروني</label>
-          <input id="signupEmail" type="email" autocomplete="email" required />
+          <input id="signupEmail" type="email" autocomplete="email" required inputmode="email" />
         </div>
         <div class="field-grid">
           <div class="field">
@@ -43,24 +42,21 @@
         </div>
         <button type="submit" class="btn-primary">إنشاء الحساب</button>
       </form>
-
       <div class="auth-links">
         <span>لديك حساب بالفعل؟</span>
         <a href="login.html">تسجيل الدخول</a>
       </div>
     </section>
   </main>
-
   <script src="../js/supabase.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
   <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260405-1"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-2"></script>
   <script src="../assets/js/session.js?v=20260326-1"></script>
   <script src="../assets/js/auth.js?v=20260405-1"></script>
 </body>
 </html>
-
 
 
 

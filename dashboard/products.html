@@ -3,12 +3,16 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https: blob:; media-src 'self' https: blob:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data: https://cdnjs.cloudflare.com; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>المنتجات - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-5" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
-<body>
+<body data-page="products">
   <header class="topbar">
     <div class="topbar-inner">
       <strong class="brand-title">Buda Partner Portal</strong>
@@ -27,51 +31,50 @@
               <p id="userMenuEmail" class="user-menu-email">-</p>
             </div>
             <div class="user-menu-actions">
-              <button id="userAvatarUploadBtn" type="button" class="btn-secondary">تغيير الصورة</button>
+              <button id="userAvatarUploadBtn" type="button" class="btn-secondary" style="display:none">تغيير الصورة</button>
               <input id="userAvatarInput" type="file" class="hidden" accept="image/*" capture="environment" />
               <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
             </div>
           </div>
         </div>
       </div>
-      <nav class="tabs-nav">
+      <nav class="tabs-nav" aria-label="التنقل الرئيسي">
         <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
-        <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="products" href="products.html" aria-current="page">المنتجات</a>
         <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
         <a data-nav="account" href="account.html">الحساب</a>
       </nav>
     </div>
   </header>
-
   <main class="page-wrap stack products-catalog-page">
     <section class="section-card catalog-hero">
       <div class="catalog-hero-grid">
-        <div>
-          <h2>منتجاتي</h2>
-          <p class="muted">راجع كل المنتجات التي أضفتها وحدّث بياناتها بسهولة.</p>
-        </div>
+
         <div class="catalog-hero-actions">
           <span class="pill">إجمالي المنتجات: <strong id="productsCount">0</strong></span>
-          <a class="btn-primary add-product-btn" href="product-editor.html">إضافة منتج جديد</a>
         </div>
       </div>
     </section>
-
     <p id="productsStatus" class="status-note hidden" aria-live="polite"></p>
-
+    <section id="notificationsSection" class="section-card hidden">
+      <div class="section-card-header">
+        <h3><i class="fa-solid fa-bell"></i> الإشعارات</h3>
+        <button id="clearNotificationsBtn" class="btn-secondary btn-sm" type="button">مسح الكل</button>
+      </div>
+      <div id="notificationsList" class="notifications-list"></div>
+    </section>
     <section class="section-card">
       <div id="productsGrid" class="products-catalog-list"></div>
     </section>
   </main>
-
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260405-1"></script>
-  <script src="../assets/js/session.js?v=20260327-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-20"></script>
+  <script src="../assets/js/session.js?v=20260712-1"></script>
   <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
-  <script src="../assets/js/dashboard-products.js?v=20260327-2"></script>
+  <script src="../assets/js/dashboard-products.js?v=20260712-9"></script>
 </body>
 </html>
 

@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https: blob:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data: https://cdnjs.cloudflare.com; base-uri 'self'; form-action 'self'" />
+  <title>الدفع - بوابة الشريك</title>
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-5" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    :root {
+      --trans-primary: #0e7c66;
+      --trans-primary-dark: #0a5f4e;
+      --trans-bg: #f4f7fb;
+      --trans-card: #ffffff;
+      --trans-radius: 16px;
+      --trans-shadow: 0 4px 24px rgba(0,0,0,0.06);
+    }
+    * { box-sizing: border-box; }
+    .trans-page {
+      max-width: 700px; margin: 0 auto; padding: 24px 16px 48px;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    /* Hero */
+    .trans-hero {
+      background: linear-gradient(135deg, #0e7c66 0%, #0a5f4e 60%, #064a3d 100%);
+      border-radius: 20px; padding: 28px 24px; color: #fff; text-align: center;
+      box-shadow: 0 8px 32px rgba(14,124,102,0.25); margin-bottom: 20px;
+      position: relative; overflow: hidden;
+    }
+    .trans-hero::before {
+      content: ''; position: absolute; width: 200px; height: 200px;
+      background: rgba(255,255,255,0.05); border-radius: 50%;
+      top: -60px; left: -60px;
+    }
+    .trans-hero::after {
+      content: ''; position: absolute; width: 140px; height: 140px;
+      background: rgba(255,255,255,0.04); border-radius: 50%;
+      bottom: -40px; right: -30px;
+    }
+    .trans-hero .hero-icon {
+      font-size: 2.2rem; margin-bottom: 8px; display: block;
+    }
+    .trans-hero h1 {
+      font-size: 1.5rem; font-weight: 800; margin: 0 0 4px;
+    }
+    .trans-hero p {
+      opacity: 0.8; font-size: 0.9rem; margin: 0;
+    }
+
+    /* Wallet card */
+    .wallet-card {
+      background: linear-gradient(135deg, #e8f5e9 0%, #c8e6c9 100%);
+      border: 2px solid #81c784; border-radius: 20px; padding: 20px 24px;
+      margin-bottom: 20px; text-align: center;
+    }
+    .wallet-card .label {
+      font-size: 0.8rem; font-weight: 700; color: #2e7d32; letter-spacing: 0.3px;
+      margin-bottom: 6px; display: flex; align-items: center; justify-content: center; gap: 6px;
+    }
+    .wallet-card .number {
+      font-size: 1.6rem; font-weight: 900; color: #1b5e20; direction: ltr;
+      letter-spacing: 1.5px; background: rgba(255,255,255,0.6); display: inline-block;
+      padding: 6px 24px; border-radius: 12px; font-family: 'Courier New', monospace;
+    }
+    .wallet-card .hint {
+      font-size: 0.82rem; color: #388e3c; margin-top: 8px;
+    }
+
+    /* Cards */
+    .trans-card {
+      background: #fff; border-radius: 20px; padding: 24px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.05); margin-bottom: 16px;
+      border: 1px solid rgba(0,0,0,0.04);
+    }
+    .trans-card .card-title {
+      font-size: 1rem; font-weight: 800; margin: 0 0 16px;
+      display: flex; align-items: center; gap: 8px; color: #1a2332;
+    }
+    .trans-card .card-title i { color: var(--trans-primary); }
+
+    /* Form fields */
+    .field-group { margin-bottom: 18px; }
+    .field-group label {
+      display: block; font-weight: 700; font-size: 0.82rem;
+      color: #4a5568; margin-bottom: 6px;
+    }
+    .field-group .field-input {
+      width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0;
+      border-radius: 12px; font-size: 0.95rem; transition: all 0.2s;
+      background: #f8fafc; font-family: inherit;
+    }
+    .field-group .field-input:focus {
+      border-color: var(--trans-primary); box-shadow: 0 0 0 3px rgba(14,124,102,0.1);
+      outline: none; background: #fff;
+    }
+    .field-group textarea.field-input { resize: vertical; min-height: 80px; }
+
+    /* Wallet selector */
+    .wallet-grid {
+      display: flex; gap: 10px; flex-wrap: wrap;
+    }
+    .wallet-grid .wg-item {
+      flex: 1; min-width: 100px; display: flex; flex-direction: column;
+      align-items: center; padding: 14px 10px; border: 2px solid #e2e8f0;
+      border-radius: 14px; cursor: pointer; transition: all 0.25s;
+      background: #f8fafc; position: relative;
+    }
+    .wallet-grid .wg-item.active {
+      border-color: var(--trans-primary); background: #f0fdf6; box-shadow: 0 0 0 3px rgba(14,124,102,0.08);
+    }
+    .wallet-grid .wg-item.disabled {
+      opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5);
+    }
+    .wallet-grid .wg-item .wgi-icon { font-size: 1.5rem; margin-bottom: 4px; }
+    .wallet-grid .wg-item .wgi-label { font-size: 0.78rem; font-weight: 700; color: #333; }
+    .wallet-grid .wg-item .wgi-badge {
+      position: absolute; top: -8px; background: #94a3b8; color: #fff;
+      font-size: 0.55rem; padding: 2px 10px; border-radius: 20px; font-weight: 700;
+      white-space: nowrap;
+    }
+
+    /* Upload */
+    .upload-zone {
+      border: 2px dashed #cbd5e1; border-radius: 16px; padding: 28px 16px;
+      text-align: center; cursor: pointer; transition: all 0.2s;
+      background: #f8fafc;
+    }
+    .upload-zone:hover { border-color: var(--trans-primary); background: #f0fdf6; }
+    .upload-zone .uz-icon { font-size: 2rem; color: var(--trans-primary); margin-bottom: 6px; }
+    .upload-zone .uz-title { font-weight: 700; color: #1e293b; margin: 0 0 2px; }
+    .upload-zone .uz-hint { font-size: 0.78rem; color: #94a3b8; }
+    .preview-grid {
+      display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px;
+    }
+    .preview-grid .pg-item {
+      position: relative; width: 120px; height: 120px; border-radius: 12px;
+      overflow: hidden; border: 2px solid #e2e8f0; background: #f1f5f9;
+    }
+    .preview-grid .pg-item img { width: 100%; height: 100%; object-fit: cover; }
+    .preview-grid .pg-item .pg-remove {
+      position: absolute; top: 4px; right: 4px; width: 24px; height: 24px;
+      border-radius: 50%; border: none; background: #ef4444; color: #fff;
+      font-size: 0.75rem; cursor: pointer; display: flex; align-items: center;
+      justify-content: center; opacity: 0.9; transition: opacity 0.2s;
+    }
+    .preview-grid .pg-item .pg-remove:hover { opacity: 1; }
+
+    /* Submit button */
+    .btn-submit {
+      width: 100%; padding: 14px; border: none; border-radius: 14px;
+      background: linear-gradient(135deg, #0e7c66, #0a5f4e);
+      color: #fff; font-size: 1rem; font-weight: 800; cursor: pointer;
+      transition: all 0.25s; box-shadow: 0 4px 16px rgba(14,124,102,0.25);
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+    }
+    .btn-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(14,124,102,0.35); }
+    .btn-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    /* Status overlay */
+    .status-overlay {
+      display: none; margin-bottom: 16px;
+    }
+    .status-overlay.show { display: block; }
+    .status-card {
+      border-radius: 20px; padding: 28px 24px; text-align: center;
+      animation: fadeSlideUp 0.4s ease;
+    }
+    .status-card .sc-icon { font-size: 3rem; margin-bottom: 12px; display: block; }
+    .status-card h2 { font-size: 1.3rem; font-weight: 800; margin: 0 0 6px; }
+    .status-card p { font-size: 0.9rem; margin: 0 0 12px; opacity: 0.85; }
+    .status-card .sc-warning {
+      background: rgba(255,255,255,0.5); border-radius: 12px;
+      padding: 12px 16px; font-size: 0.8rem; margin-top: 12px;
+      border: 1px solid rgba(0,0,0,0.06);
+    }
+    .status-card.pending {
+      background: linear-gradient(135deg, #fff8e1, #ffecb3);
+      border: 2px solid #ffca28; color: #6d4c00;
+    }
+    .status-card.approved {
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      border: 2px solid #66bb6a; color: #1b5e20;
+    }
+    .status-card.rejected {
+      background: linear-gradient(135deg, #fbe9e7, #ffccbc);
+      border: 2px solid #ef5350; color: #b71c1c;
+    }
+    .status-card .pulse-dot {
+      display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+      background: #ffa000; margin-left: 6px; animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); opacity: 1; }
+      50% { transform: scale(1.4); opacity: 0.5; }
+    }
+    @keyframes fadeSlideUp {
+      from { opacity: 0; transform: translateY(16px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* History */
+    .history-list { display: flex; flex-direction: column; gap: 8px; }
+    .history-row {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 16px; background: #f8fafc; border-radius: 14px;
+      border: 1px solid #f1f5f9; transition: all 0.2s;
+    }
+    .history-row:hover { border-color: #e2e8f0; }
+    .history-row .hr-left { display: flex; flex-direction: column; gap: 2px; }
+    .history-row .hr-date { font-size: 0.85rem; font-weight: 700; color: #1e293b; }
+    .history-row .hr-phone { font-size: 0.75rem; color: #64748b; }
+    .history-row .hr-badge {
+      font-size: 0.7rem; font-weight: 700; padding: 4px 14px; border-radius: 20px;
+    }
+    .history-row .hr-badge.pending { background: #fff3cd; color: #856404; }
+    .history-row .hr-badge.approved { background: #d4edda; color: #155724; }
+    .history-row .hr-badge.rejected { background: #f8d7da; color: #721c24; }
+
+    .empty-state {
+      text-align: center; padding: 32px 16px; color: #94a3b8;
+    }
+    .empty-state .es-icon { font-size: 2.5rem; margin-bottom: 8px; opacity: 0.5; display: block; }
+    .empty-state p { font-size: 0.9rem; margin: 0; }
+
+    .back-link {
+      display: inline-flex; align-items: center; gap: 6px; color: var(--trans-primary);
+      font-weight: 700; font-size: 0.85rem; text-decoration: none; margin-top: 16px;
+      padding: 10px 20px; border-radius: 12px; border: 2px solid var(--trans-primary);
+      transition: all 0.2s;
+    }
+    .back-link:hover { background: var(--trans-primary); color: #fff; }
+
+    @media (max-width: 500px) {
+      .trans-page { padding: 16px 12px 32px; }
+      .trans-card { padding: 18px; }
+      .wallet-grid .wg-item { min-width: 80px; padding: 10px 6px; }
+      .wallet-card .number { font-size: 1.2rem; padding: 4px 16px; }
+      .trans-hero { padding: 22px 16px; }
+    }
+  </style>
+</head>
+<body data-page="transfer">
+  <header class="topbar">
+    <div class="topbar-inner">
+      <strong class="brand-title">Buda Partner Portal</strong>
+      <div class="topbar-actions">
+        <div id="userMenuRoot" class="user-menu">
+          <button id="userMenuTrigger" class="avatar-trigger" type="button" aria-label="قائمة المستخدم" aria-haspopup="menu" aria-expanded="false" aria-controls="userMenuPanel">
+            <span id="userAvatarInitial" class="avatar-fallback">?</span>
+            <img id="userAvatarImage" class="avatar-image hidden" alt="صورة المستخدم" loading="lazy" />
+          </button>
+          <div id="userMenuPanel" class="user-menu-panel hidden" role="menu">
+            <div class="user-menu-header">
+              <div class="avatar-preview">
+                <span id="userMenuAvatarInitial" class="avatar-fallback avatar-fallback-lg">?</span>
+                <img id="userMenuAvatarImage" class="avatar-image avatar-image-lg hidden" alt="صورة الملف الشخصي" loading="lazy" />
+              </div>
+              <p id="userMenuEmail" class="user-menu-email">-</p>
+            </div>
+            <div class="user-menu-actions">
+              <button id="userAvatarUploadBtn" type="button" class="btn-secondary" style="display:none">تغيير الصورة</button>
+              <input id="userAvatarInput" type="file" class="hidden" accept="image/*" capture="environment" />
+              <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <nav class="tabs-nav" aria-label="التنقل الرئيسي">
+        <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
+        <a data-nav="products" href="products.html">المنتجات</a>
+        <a data-nav="sales" href="sales.html">المبيعات</a>
+        <a data-nav="orders" href="orders.html">الطلبات</a>
+        <a data-nav="account" href="account.html">الحساب</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="trans-page">
+
+    <!-- Hero -->
+    <div class="trans-hero">
+      <span class="hero-icon">💳</span>
+      <h1>الدفع والإيصالات</h1>
+      <p>أرسل إيصال التحويل الإلكتروني وانتظر التأكيد</p>
+    </div>
+
+    <!-- Status overlay (after submit) -->
+    <div class="status-overlay" id="statusOverlay">
+      <div class="status-card" id="statusCard">
+        <span class="sc-icon" id="statusIcon">⏳</span>
+        <h2 id="statusTitle">قيد المراجعة</h2>
+        <p id="statusDesc">تم استلام إيصالك، سيتم مراجعة الدفع وتأكيد الحساب خلال 24 ساعة</p>
+        <div id="statusExtra"></div>
+      </div>
+    </div>
+
+    <!-- Amount card -->
+    <div class="trans-card">
+      <div class="card-title"><i class="fa-solid fa-coins"></i> المبلغ المستحق</div>
+      <p style="font-size:2rem;font-weight:900;color:#0e7c66;margin:0;direction:ltr;" id="transferAmount">0 ج.م</p>
+    </div>
+
+    <!-- Store wallet card -->
+    <div class="wallet-card">
+      <div class="label"><i class="fa-solid fa-wallet"></i> رقم المحفظة الرسمي للتحويل</div>
+      <div class="number" id="storeWalletNumber">جاري التحميل...</div>
+      <div class="hint"><i class="fa-solid fa-info-circle"></i> حول المبلغ إلى هذا الرقم ثم أرفق الإيصال أدناه</div>
+    </div>
+
+    <!-- Form -->
+    <div class="trans-card" id="transferFormSection">
+      <div class="card-title"><i class="fa-solid fa-file-invoice"></i> إرفاق إيصال الدفع</div>
+
+      <form id="transferForm">
+        <div class="field-group">
+          <label>طريقة التحويل</label>
+          <div class="wallet-grid">
+            <div class="wg-item active">
+              <span class="wgi-icon">📱</span>
+              <span class="wgi-label">محفظة إلكترونية</span>
+            </div>
+            <div class="wg-item disabled">
+              <span class="wgi-badge">قريباً</span>
+              <span class="wgi-icon">🏦</span>
+              <span class="wgi-label">تحويل بنكي</span>
+            </div>
+            <div class="wg-item disabled">
+              <span class="wgi-badge">قريباً</span>
+              <span class="wgi-icon">💳</span>
+              <span class="wgi-label">InstaPay</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="transferPhone">رقم الهاتف المحول منه <span style="color:#ef4444;">*</span></label>
+          <input id="transferPhone" type="tel" class="field-input" placeholder="مثال: 01012345678" required />
+        </div>
+
+        <div class="field-group">
+          <label>صورة الإيصال <span style="color:#ef4444;">*</span> <span style="font-weight:400;color:#94a3b8;">(1-2 صور)</span></label>
+          <div class="upload-zone" id="receiptDropArea">
+            <input id="receiptInput" type="file" accept="image/*" multiple hidden />
+            <div id="receiptPlaceholder">
+              <div class="uz-icon"><i class="fa-solid fa-cloud-arrow-up"></i></div>
+              <p class="uz-title">اضغط أو اسحب الصورة هنا</p>
+              <p class="uz-hint">JPG, PNG - حجم أقل من 2 ميجابكسل</p>
+            </div>
+            <div class="preview-grid" id="receiptPreview"></div>
+          </div>
+        </div>
+
+        <div class="field-group">
+          <label for="transferNote">ملاحظات <span style="font-weight:400;color:#94a3b8;">(اختياري)</span></label>
+          <textarea id="transferNote" class="field-input" rows="3" placeholder="أي ملاحظات إضافية..."></textarea>
+        </div>
+
+        <button type="submit" class="btn-submit" id="submitReceiptBtn">
+          <i class="fa-solid fa-paper-plane"></i> إرسال الإيصال
+        </button>
+      </form>
+      <p id="transferStatus" class="status-note hidden" aria-live="polite"></p>
+    </div>
+
+    <!-- History -->
+    <div class="trans-card" id="transferHistorySection">
+      <div class="card-title"><i class="fa-regular fa-clock"></i> طلبات التحويل السابقة</div>
+      <div id="transferHistory">
+        <div class="empty-state">
+          <span class="es-icon">📋</span>
+          <p>لا توجد طلبات سابقة</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="../js/supabase.js"></script>
+  <script src="../assets/js/config.js?v=20260326-1"></script>
+  <script src="../assets/js/security-utils.js?v=20260324-4"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-20"></script>
+  <script src="../assets/js/session.js?v=20260712-1"></script>
+  <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
+  <script src="../assets/js/dashboard-transfer.js?v=20260712-4"></script>
+</body>
+</html>

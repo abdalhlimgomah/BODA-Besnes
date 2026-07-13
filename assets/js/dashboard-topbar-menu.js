@@ -4,6 +4,10 @@
   const AVATAR_MAX_SIDE = 560;
   const AVATAR_QUALITY = 0.84;
 
+  function escapeHtml(value) {
+    return String(value || "").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;").replace(/'/g,"&#39;");
+  }
+
   function safeText(value) {
     return String(value || "").trim();
   }
@@ -176,10 +180,117 @@
 
     if (!trigger || !panel || !uploadInput || !uploadBtn || !logoutBtn) return null;
 
+    // Move panel to body so centering works properly
+    document.body.appendChild(panel);
+
+    // Add close button to user menu panel header
+    var closeMenuBtn = document.createElement("button");
+    closeMenuBtn.type = "button";
+    closeMenuBtn.className = "menu-close-btn";
+    closeMenuBtn.innerHTML = "✕";
+    closeMenuBtn.setAttribute("aria-label", "إغلاق");
+    closeMenuBtn.addEventListener("click", closeMenu);
+    var menuHeader = panel.querySelector(".user-menu-header");
+    if (menuHeader) menuHeader.appendChild(closeMenuBtn);
+
+    // Notification bell
+    var bellBtn = document.createElement("button");
+    bellBtn.type = "button";
+    bellBtn.className = "notif-bell";
+    bellBtn.setAttribute("aria-label", "الإشعارات");
+    bellBtn.innerHTML = '<i class="fa-solid fa-bell"></i><span id="notifBadge" class="notif-badge hidden">0</span>';
+    root.parentNode.insertBefore(bellBtn, root);
+
+    var notifOverlay = document.createElement("div");
+    notifOverlay.className = "menu-overlay hidden";
+    notifOverlay.id = "notifOverlay";
+    notifOverlay.style.zIndex = "99";
+    notifOverlay.addEventListener("click", function() { closeNotif(); });
+    document.body.appendChild(notifOverlay);
+
+    var notifDropdown = document.createElement("div");
+    notifDropdown.className = "notif-dropdown hidden";
+    notifDropdown.id = "notifDropdown";
+    notifDropdown.style.zIndex = "101";
+    notifDropdown.style.position = "fixed";
+    notifDropdown.style.top = "70px";
+    notifDropdown.style.insetInlineEnd = "16px";
+    notifDropdown.innerHTML = '<div class="notif-header"><strong>الإشعارات</strong><button type="button" class="menu-close-btn" id="notifCloseBtn" aria-label="إغلاق">✕</button></div><div id="notifList" class="notif-list"></div>';
+    document.body.appendChild(notifDropdown);
+
+    // Ensure static positioning for notif
+    notifDropdown.style.position = "fixed";
+    notifDropdown.style.top = "70px";
+    notifDropdown.style.insetInlineEnd = "16px";
+
+    function closeNotif() {
+      notifDropdown.classList.add("hidden");
+      notifOverlay.classList.add("hidden");
+      notifOpen = false;
+    }
+
+    document.getElementById("notifCloseBtn")?.addEventListener("click", closeNotif);
+
+    var notifOpen = false;
+    bellBtn.addEventListener("click", function(e) {
+      e.stopPropagation();
+      notifOpen = !notifOpen;
+      notifDropdown.classList.toggle("hidden", !notifOpen);
+      notifOverlay.classList.toggle("hidden", !notifOpen);
+      if (notifOpen) loadNotifList(user?.email);
+    });
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Escape" && notifOpen) closeNotif();
+    });
+
+    async function loadNotifList(email) {
+      if (!email || !window.PartnerAPI?.raw) return;
+      var list = document.getElementById("notifList");
+      if (!list) return;
+      list.innerHTML = "<p class='muted' style='padding:12px;'>جار التحميل...</p>";
+      try {
+        var c = window.PartnerAPI.raw();
+        var { data } = await c.from("partner_notifications").select("*").eq("partner_email", email).order("created_at", { ascending: false }).limit(10);
+        if (!data || !data.length) {
+          list.innerHTML = "<p class='muted' style='padding:12px;'>لا توجد إشعارات</p>";
+          return;
+        }
+        list.innerHTML = data.map(function(n) {
+          var icon = n.type === "product_approved" ? "✅" : n.type === "product_rejected" ? "❌" : n.type === "admin_note" ? "📢" : "⏳";
+          return '<div class="notif-item' + (n.is_read ? "" : " notif-unread") + '">' +
+            '<span class="notif-icon">' + icon + '</span>' +
+            '<div class="notif-body"><strong>' + escapeHtml(n.title || "") + '</strong><p>' + escapeHtml(n.message || "") + '</p></div>' +
+          '</div>';
+        }).join("");
+      } catch(e) {
+        list.innerHTML = "<p class='muted' style='padding:12px;'>خطأ في التحميل</p>";
+      }
+    }
+
+    async function updateNotifBadge(email) {
+      if (!email || !window.PartnerAPI?.raw) return;
+      try {
+        var c = window.PartnerAPI.raw();
+        var { data } = await c.from("partner_notifications").select("id").eq("partner_email", email).eq("is_read", false).limit(100);
+        var badge = document.getElementById("notifBadge");
+        if (!badge) return;
+        var count = (Array.isArray(data) ? data.length : 0);
+        if (count > 0) {
+          badge.textContent = String(count);
+          badge.classList.remove("hidden");
+        } else {
+          badge.classList.add("hidden");
+        }
+      } catch(e) {}
+    }
+
     const notify = typeof options.notify === "function" ? options.notify : () => {};
     let user = options.user || window.PartnerSession?.getCurrentUser?.() || null;
     let busy = false;
     let signingOut = false;
+
+    updateNotifBadge(user?.email);
+    setInterval(function() { updateNotifBadge(user?.email); }, 30000);
 
     triggerImage?.addEventListener("error", () => {
       triggerImage.removeAttribute("src");
@@ -194,11 +305,23 @@
 
     function closeMenu() {
       panel.classList.add("hidden");
+      var ov = document.getElementById("userMenuOverlay");
+      if (ov) ov.classList.add("hidden");
       trigger.setAttribute("aria-expanded", "false");
     }
 
     function openMenu() {
+      var ov = document.getElementById("userMenuOverlay");
+      if (!ov) {
+        ov = document.createElement("div");
+        ov.id = "userMenuOverlay";
+        ov.className = "menu-overlay hidden";
+        ov.style.zIndex = "120";
+        ov.addEventListener("click", closeMenu);
+        document.body.appendChild(ov);
+      }
       panel.classList.remove("hidden");
+      ov.classList.remove("hidden");
       trigger.setAttribute("aria-expanded", "true");
     }
 
@@ -236,7 +359,7 @@
     });
 
     document.addEventListener("click", (event) => {
-      if (root.contains(event.target)) return;
+      if (panel.contains(event.target) || trigger.contains(event.target)) return;
       closeMenu();
     });
 

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>مراجعة الشراكه - Buda</title>
+  <link href="../assets/fonts/cairo.css" rel="stylesheet" />
+  <link href="../assets/fonts/inter.css" rel="stylesheet" />
+  <link href="../assets/fonts/material-icons-outlined.css" rel="stylesheet" />
+  <link href="../assets/css/noon-theme.css" rel="stylesheet" />
+  <link href="../assets/css/noon-shell.css" rel="stylesheet" />
+  <link href="../assets/css/noon-components.css" rel="stylesheet" />
+  <link rel="icon" type="image/x-icon" href="../assets/icons/favicon.ico" />
+  <style>
+    :root{--side-bg:#0f172a;--side-hover:#1e293b;--side-text:#94a3b8;--side-active:#facc15;--radius:8px}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:'Cairo',sans-serif;background:#f1f5f9;color:#0f172a;-webkit-font-smoothing:antialiased}
+    .app-layout{display:flex;min-height:100vh}
+    .sidebar{width:260px;background:var(--side-bg);color:#fff;padding:24px 0;position:fixed;top:0;right:0;bottom:0;overflow-y:auto;z-index:100;display:flex;flex-direction:column}
+    .sidebar .brand{padding:0 24px 24px;border-bottom:1px solid #1e293b;font-size:1.15rem;font-weight:800;color:var(--side-active);display:flex;align-items:center;gap:10px}
+    .sidebar nav{padding:8px 0;flex:1}
+    .sidebar a{display:flex;align-items:center;gap:12px;padding:12px 24px;color:var(--side-text);text-decoration:none;font-size:.9rem;font-weight:500;transition:all .15s ease;border-right:3px solid transparent}
+    .sidebar a:hover{background:var(--side-hover);color:#e2e8f0;border-right-color:rgba(250,204,21,.4)}
+    .sidebar a.active{background:var(--side-hover);color:#fff;border-right-color:var(--side-active)}
+    .sidebar a .material-icons-outlined{font-size:20px}
+    .main-content{margin-right:260px;flex:1;padding:28px;max-width:calc(100vw - 260px)}
+    .card{background:#fff;border-radius:16px;padding:24px;margin-bottom:20px;box-shadow:0 1px 3px rgba(0,0,0,.04),0 1px 2px rgba(0,0,0,.06);border:1px solid #e2e8f0;transition:box-shadow .15s}
+    .card:hover{box-shadow:0 4px 12px rgba(0,0,0,.06)}
+    .card h2{font-size:1rem;font-weight:700;margin:0 0 16px;display:flex;align-items:center;gap:8px}
+    .stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:14px;margin-bottom:24px}
+    .stat-card{background:#fff;border-radius:12px;padding:20px;border:1px solid #e2e8f0;text-align:center;transition:box-shadow .15s,border-color .15s}
+    .stat-card:hover{border-color:#cbd5e1;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+    .stat-card .num{font-size:2rem;font-weight:800;color:#0f172a;line-height:1.2}
+    .stat-card .label{font-size:.8rem;color:#64748b;margin-top:4px}
+    table{width:100%;border-collapse:collapse;font-size:.82rem;background:#fff;border-radius:var(--radius);overflow:hidden}
+    th{text-align:right;padding:12px 10px;border-bottom:2px solid #e2e8f0;color:#475569;font-weight:700;font-size:.8rem;white-space:nowrap}
+    td{padding:10px;border-bottom:1px solid #f1f5f9;transition:background .12s}
+    tr:last-child td{border-bottom:none}
+    tr:hover td{background:#f8fafc}
+    .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border:0;border-radius:var(--radius);font-size:.82rem;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s ease;line-height:1.4;user-select:none}
+    .btn:active{transform:scale(.96)}
+    .btn-primary{background:#0f172a;color:#fff}
+    .btn-primary:hover{background:#1e293b}
+    .btn-outline{background:transparent;border:1.5px solid #e2e8f0;color:#475569}
+    .btn-outline:hover{background:#f8fafc;border-color:#cbd5e1;color:#0f172a}
+    .btn-group{display:flex;gap:8px;flex-wrap:wrap}
+    .log-box{background:#f8fafc;border-radius:var(--radius);padding:14px;max-height:200px;overflow-y:auto;margin-top:14px;font-size:.8rem;color:#64748b;border:1px solid #e2e8f0;line-height:1.7}
+    .log-box div{padding:2px 0}
+  </style>
+</head>
+<body>
+  <div class="app-layout">
+    <aside class="sidebar">
+      <div class="brand"><span class="material-icons-outlined" aria-hidden="true">dashboard</span> Buda Admin</div>
+      <nav>
+        <a href="admin-sections.html"><span class="material-icons-outlined" aria-hidden="true">view_carousel</span> أقسام الهوم</a>
+        <a href="manage-products.html"><span class="material-icons-outlined" aria-hidden="true">inventory</span> إدارة المنتجات</a>
+        <a href="review-partnership.html" class="active" aria-current="page"><span class="material-icons-outlined" aria-hidden="true">handshake</span> مراجعة الشراكه</a>
+        <a href="home.html" style="margin-top:auto;border-top:1px solid #1e293b;padding-top:16px"><span class="material-icons-outlined" aria-hidden="true">arrow_back</span> العودة للموقع</a>
+      </nav>
+    </aside>
+    <main class="main-content">
+      <div class="stat-grid" id="statsGrid"></div>
+      <div class="card">
+        <h2><span class="material-icons-outlined" aria-hidden="true">group_work</span> منتجات الشراكه (partner_products)</h2>
+        <div id="partnerWrap"><p style="color:#94a3b8;">جارٍ التحميل...</p></div>
+      </div>
+      <div class="card">
+        <h2><span class="material-icons-outlined" aria-hidden="true">settings</span> إعدادات API</h2>
+        <div id="settingsWrap"><p style="color:#94a3b8;">جارٍ التحميل...</p></div>
+      </div>
+      <div class="card">
+        <h2><span class="material-icons-outlined" aria-hidden="true">sync</span> مزامنة</h2>
+        <div class="btn-group">
+          <button class="btn btn-primary" onclick="refresh()">تحديث</button>
+          <button class="btn btn-outline" onclick="clearPartnerCache()">مسح كاش الشركاء</button>
+        </div>
+        <div class="log-box" id="syncLog"></div>
+      </div>
+    </main>
+  </div>
+  <script src="../assets/vendor/supabase/supabase-js@2.js"></script>
+  <script src="../assets/js/supabase-client.js"></script>
+  <script src="../assets/js/store.js"></script>
+  <script>
+    function log(m){var el=document.getElementById('syncLog');if(el)el.innerHTML='<div>['+new Date().toLocaleTimeString()+'] '+m+'</div>'+el.innerHTML;}
+    function esc(v){return String(v||'').replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c];});}
+    async function refresh(){
+      log('جارٍ التحميل...');
+      var c = window.supabaseClient, store = window.BudaStore;
+      var counts={total:0,partner:0,taager:0,local:0};
+      if(store){var all=Object.values(store.getAllProducts()).filter(Boolean);counts.total=all.length;all.forEach(function(p){if(p.source==='taager')counts.taager++;else if(p.source==='partner')counts.partner++;else counts.local++;});}
+      document.getElementById('statsGrid').innerHTML=
+        '<div class="stat-card"><div class="num">'+counts.total+'</div><div class="label">إجمالي</div></div>'+
+        '<div class="stat-card"><div class="num">'+counts.local+'</div><div class="label">محلي</div></div>'+
+        '<div class="stat-card"><div class="num">'+counts.taager+'</div><div class="label">تاجر</div></div>'+
+        '<div class="stat-card"><div class="num">'+counts.partner+'</div><div class="label">شركاء</div></div>';
+      if(!c){log('Supabase غير متصل');return;}
+      try{
+        var{data:pp}=await c.from('partner_products').select('*').limit(100);
+        if(pp&&pp.length)document.getElementById('partnerWrap').innerHTML='<table><thead><tr><th>#</th><th>المنتج</th><th>السعر</th><th>التصنيف</th></tr></thead><tbody>'+
+          pp.map(function(p,i){return '<tr><td>'+(i+1)+'</td><td>'+esc(p.name||p.id)+'</td><td>'+(p.price||'—')+'</td><td>'+esc(p.category||'—')+'</td></tr>';}).join('')+'</tbody></table><p style="margin-top:8px;font-size:.8rem;color:#64748b">'+pp.length+' منتج</p>';
+        else document.getElementById('partnerWrap').innerHTML='<p style="color:#94a3b8;">لا توجد منتجات شركاء</p>';
+        log('partner_products: '+(pp?pp.length:0));
+      }catch(e){log('خطأ: '+e.message);}
+      try{
+        var{data:sets}=await c.from('app_settings').select('key,value').in('key',['ai_api_key','taager_api_key','taager_merchant_api','taager_session_key']);
+        if(sets&&sets.length)document.getElementById('settingsWrap').innerHTML='<table><thead><tr><th>المفتاح</th><th>القيمة</th><th>الحالة</th></tr></thead><tbody>'+
+          sets.map(function(s){var v=s.value?String(s.value).substring(0,20)+'...':'—',ok=s.value&&String(s.value).length>5;return '<tr><td>'+esc(s.key)+'</td><td><code style="font-size:.75rem;">'+esc(v)+'</code></td><td><span style="color:'+(ok?'#16a34a':'#ef4444')+';">'+(ok?'✓':'✗')+'</span></td></tr>';}).join('')+'</tbody></table>';
+        else document.getElementById('settingsWrap').innerHTML='<p style="color:#94a3b8;">لا توجد إعدادات</p>';
+        log('app_settings: '+(sets?sets.length:0));
+      }catch(e){log('خطأ: '+e.message);}
+    }
+    function clearPartnerCache(){try{for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);if(k&&(k.startsWith('partner_products_')||k==='boda_all_products')){localStorage.removeItem(k);log('تم مسح: '+k);}}}catch(e){log('خطأ: '+e.message);}}
+    setTimeout(refresh,500);
+  </script>
+</body>
+</html>
+
+

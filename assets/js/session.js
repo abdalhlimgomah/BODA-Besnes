@@ -259,72 +259,67 @@
       return cached;
     }
 
-    const directFallback = getDirectLocalFallbackUser();
-    if (directFallback) {
-      setCurrentUser(directFallback);
-      return directFallback;
+    // Always check Supabase Auth first before falling back to local-direct
+    if (window.PartnerAPI) {
+      try {
+        let authUser = await window.PartnerAPI.getAuthUser();
+        if (!authUser && window.PartnerAPI.getAuthSession) {
+          try {
+            const session = await window.PartnerAPI.getAuthSession();
+            authUser = session?.user || null;
+          } catch {
+            authUser = null;
+          }
+        }
+
+        if (authUser) {
+          let profile = null;
+          try {
+            profile = await window.PartnerAPI.getMyProfile();
+          } catch (error) {
+            console.warn("profile fetch skipped", error);
+          }
+
+          const metadata = authUser.user_metadata || {};
+          const normalized = {
+            id: authUser.id,
+            email: normalizeEmail(authUser.email || profile?.email || ""),
+            name: safeText(profile?.full_name || metadata.full_name || ""),
+            phone: safeText(profile?.phone || metadata.phone || ""),
+            avatarUrl: sanitizeImageSource(
+              profile?.avatar_url || profile?.avatar || profile?.profile_image || metadata.avatar_url || metadata.avatar || metadata.picture || ""
+            ),
+          };
+
+          if (normalized.email) {
+            setCurrentUser(normalized);
+            return getCurrentUser();
+          }
+          clearSession();
+          return null;
+        }
+      } catch (error) {
+        console.error("refresh auth session failed", error);
+      }
     }
 
     if (!window.PartnerAPI) {
       return cached || null;
     }
 
-    try {
-      let authUser = await window.PartnerAPI.getAuthUser();
-      if (!authUser && window.PartnerAPI.getAuthSession) {
-        try {
-          const session = await window.PartnerAPI.getAuthSession();
-          authUser = session?.user || null;
-        } catch {
-          authUser = null;
-        }
-      }
-
-      if (!authUser) {
-        if (directFallback) {
-          setCurrentUser(directFallback);
-          return directFallback;
-        }
-        if (cached && isRecentLogin(cached)) {
-          return cached;
-        }
-        clearSession();
-        return null;
-      }
-
-      let profile = null;
-      try {
-        profile = await window.PartnerAPI.getMyProfile();
-      } catch (error) {
-        console.warn("profile fetch skipped", error);
-      }
-
-      const metadata = authUser.user_metadata || {};
-      const normalized = {
-        id: authUser.id,
-        email: normalizeEmail(authUser.email || profile?.email || ""),
-        name: safeText(profile?.full_name || metadata.full_name || ""),
-        phone: safeText(profile?.phone || metadata.phone || ""),
-        avatarUrl: sanitizeImageSource(
-          profile?.avatar_url || profile?.avatar || profile?.profile_image || metadata.avatar_url || metadata.avatar || metadata.picture || ""
-        ),
-      };
-
-      if (!normalized.email) {
-        clearSession();
-        return null;
-      }
-
-      setCurrentUser(normalized);
-      return getCurrentUser();
-    } catch (error) {
-      console.error("refresh auth session failed", error);
-      if (cached && isRecentLogin(cached)) {
-        return cached;
-      }
-      clearSession();
-      return null;
+    // Fallback to local-direct only when Supabase Auth has no session
+    const directFallback = getDirectLocalFallbackUser();
+    if (directFallback) {
+      setCurrentUser(directFallback);
+      return directFallback;
     }
+
+    if (cached && isRecentLogin(cached)) {
+      return cached;
+    }
+
+    clearSession();
+    return null;
   }
 
   function getCurrentEmail() {
@@ -362,6 +357,8 @@
       return;
     }
 
+    syncPartnerAccount(user.email, user.name, user.id);
+
     const partnerAccess = await getPartnerAccess(user, { forceFresh: true });
     if (partnerAccess.exists && partnerAccess.normalizedStatus === "rejected") {
       goTo(window.APP_ROUTES.dashboardBlocked);
@@ -390,6 +387,8 @@
       return null;
     }
 
+    syncPartnerAccount(user.email, user.name, user.id);
+
     if (!requirePartner) return user;
 
     const partnerAccess = await getPartnerAccess(user, { forceFresh: true });
@@ -404,6 +403,8 @@
       }
       return null;
     }
+
+    checkSuspension(user.email || "");
 
     return user;
   }
@@ -455,6 +456,146 @@
 
   attachAuthStateListener();
 
+  var suspensionChecked = false;
+  var suspensionStatus = "active";
+
+  async function calcPartnerTotals(email) {
+    if (!window.PartnerAPI?.getPartnerOrders) return { revenue: 0, fees: 0, tax: 0, amount: 0 };
+    var orders = await window.PartnerAPI.getPartnerOrders(email || null);
+    var revenue = 0;
+    var fees = 0;
+    var tax = 0;
+    if (orders) {
+      orders.forEach(function(order) {
+        if (order.status !== "delivered") return;
+        var items = Array.isArray(order.items) ? order.items : [];
+        items.forEach(function(item) {
+          var qty = Math.max(1, Number(item.quantity || 1));
+          var lineTotal = Number(item.lineTotal || 0);
+          var price = Number(item.price || 0);
+          var lineRevenue = lineTotal > 0 ? lineTotal : qty * price;
+          revenue += lineRevenue;
+          fees += lineRevenue * 0.05;
+          tax += qty * 12;
+        });
+      });
+    }
+    var amount = fees + tax;
+    return { revenue: Math.round(revenue * 100) / 100, fees: Math.round(fees * 100) / 100, tax: Math.round(tax * 100) / 100, amount: Math.round(amount * 100) / 100 };
+  }
+
+  function validUUID(value) {
+    if (!value) return null;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) return value;
+    return null;
+  }
+
+  async function syncPartnerAccount(email, name, id) {
+    if (!email || !window.PartnerAPI?.raw) return;
+    var client = window.PartnerAPI.raw();
+    var userId = validUUID(id);
+    try {
+      if (!userId) {
+        var { data: pdata } = await client.from("profiles").select("id").eq("email", email).maybeSingle();
+        if (pdata) userId = pdata.id;
+      }
+    } catch(e) { console.warn("[sync] profiles lookup:", e.message); }
+    try {
+      if (!userId) {
+        var { data: udata } = await client.from("users").select("id").eq("email", email).maybeSingle();
+        if (udata) userId = udata.id;
+      }
+    } catch(e) { console.warn("[sync] users lookup:", e.message); }
+
+    var totals = { revenue: 0, fees: 0, tax: 0, amount: 0 };
+    try {
+      totals = await calcPartnerTotals(email);
+    } catch(e) { console.warn("[sync] calc totals:", e.message); }
+
+    try {
+      var { data: existingAcc } = await client.from("partner_accounts").select("email").eq("email", email).maybeSingle();
+      if (!existingAcc) {
+        await client.from("partner_accounts").insert({
+          user_id: userId || "00000000-0000-0000-0000-000000000000",
+          email: email,
+          full_name: name || email.split("@")[0],
+          avatar_url: "",
+          status: "active",
+          total_fees: totals.fees,
+          total_tax: totals.tax,
+          total_amount: totals.amount
+        });
+      } else {
+        await client.from("partner_accounts").update({
+          total_fees: totals.fees,
+          total_tax: totals.tax,
+          total_amount: totals.amount
+        }).eq("email", email);
+      }
+    } catch(e) { console.warn("[sync] partner_accounts:", e.message); }
+
+    try {
+      var now = new Date();
+      var periodStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().split("T")[0];
+      var periodEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0).toISOString().split("T")[0];
+      var { data: existingInv } = await client.from("partner_invoices").select("id").eq("email", email).limit(1).maybeSingle();
+      if (!existingInv) {
+        await client.from("partner_invoices").insert({
+          user_id: userId || "00000000-0000-0000-0000-000000000000",
+          email: email,
+          period_start: periodStart,
+          period_end: periodEnd,
+          total_revenue: totals.revenue,
+          total_fees: totals.fees,
+          total_tax: totals.tax,
+          total_amount: totals.amount,
+          status: "pending"
+        });
+      } else {
+        await client.from("partner_invoices").update({
+          total_revenue: totals.revenue,
+          total_fees: totals.fees,
+          total_tax: totals.tax,
+          total_amount: totals.amount
+        }).eq("email", email);
+      }
+    } catch(e) { console.warn("[sync] partner_invoices:", e.message); }
+  }
+
+  async function checkSuspension(email) {
+    if (!email) return "active";
+    if (suspensionChecked) return suspensionStatus;
+    suspensionChecked = true;
+    try {
+      if (!window.PartnerAPI?.raw) return "active";
+      var client = window.PartnerAPI.raw();
+      var { data } = await client.from("partner_accounts").select("status").eq("email", email).maybeSingle();
+      suspensionStatus = (data && data.status) || "active";
+    } catch (e) {
+      suspensionStatus = "active";
+    }
+    runtime.suspended = suspensionStatus === "suspended";
+    if (runtime.suspended) {
+      document.body.classList.add("account-suspended");
+      if (!document.getElementById("suspendedBanner")) {
+        var banner = document.createElement("div");
+        banner.id = "suspendedBanner";
+        banner.className = "suspended-banner";
+        banner.innerHTML = '<span>⚠ الحساب معلق — تم تقييد الصلاحيات</span> <button class="suspended-pay-link" onclick="window.location.href=\'transfer.html\'">اذهب لصفحة الدفع ←</button>';
+        document.body.insertBefore(banner, document.body.firstChild);
+      }
+    } else {
+      document.body.classList.remove("account-suspended");
+      var existingBanner = document.getElementById("suspendedBanner");
+      if (existingBanner) existingBanner.remove();
+    }
+    return suspensionStatus;
+  }
+
+  function isSuspended() {
+    return runtime.suspended === true;
+  }
+
   window.PartnerSession = Object.freeze({
     keys: SESSION_KEYS,
     getCurrentUser,
@@ -470,5 +611,8 @@
     redirectAfterAuth,
     requireAuth,
     markActiveNav,
+    checkSuspension,
+    isSuspended,
+    syncPartnerAccount,
   });
 })();

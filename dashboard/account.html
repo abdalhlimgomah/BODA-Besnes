@@ -3,12 +3,119 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data:; base-uri 'self'; form-action 'self'" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; img-src 'self' data: https: blob:; connect-src 'self' https://msgqzgzoslearaprgiqq.supabase.co https://api.emailjs.com wss://msgqzgzoslearaprgiqq.supabase.co; font-src 'self' data: https://cdnjs.cloudflare.com; base-uri 'self'; form-action 'self'" />
   <meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
   <title>الحساب - بوابة الشريك</title>
-  <link rel="stylesheet" href="../assets/css/app.css?v=20260326-2" />
+  <link rel="stylesheet" href="../assets/css/app.css?v=20260712-5" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
+  <style>
+    .profile-header {
+      background: linear-gradient(135deg, var(--primary) 0%, #0a5f4e 100%);
+      border-radius: var(--radius-xl);
+      padding: 32px 28px;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 24px;
+      box-shadow: 0 8px 32px rgba(14,124,102,0.2);
+      margin-bottom: 20px;
+    }
+    .profile-avatar-wrap {
+      position: relative;
+      flex-shrink: 0;
+    }
+    .profile-avatar {
+      width: 96px;
+      height: 96px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 4px solid rgba(255,255,255,0.3);
+      background: rgba(255,255,255,0.15);
+      cursor: pointer;
+      transition: all 0.25s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #fff;
+      overflow: hidden;
+    }
+    .profile-avatar:hover {
+      border-color: rgba(255,255,255,0.6);
+      transform: scale(1.03);
+    }
+    .profile-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    .profile-avatar-overlay {
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      background: var(--primary);
+      border: 2px solid #fff;
+      border-radius: 50%;
+      width: 32px;
+      height: 32px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.85rem;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      transition: all 0.2s;
+    }
+    .profile-avatar-overlay:hover {
+      transform: scale(1.1);
+    }
+    .profile-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .profile-name {
+      font-size: 1.4rem;
+      font-weight: 800;
+      margin: 0 0 4px;
+    }
+    .profile-email {
+      font-size: 0.9rem;
+      opacity: 0.8;
+      margin: 0 0 8px;
+      direction: ltr;
+      text-align: right;
+    }
+    .profile-badges {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .profile-badge {
+      background: rgba(255,255,255,0.15);
+      border-radius: var(--radius-full);
+      padding: 4px 14px;
+      font-size: 0.72rem;
+      font-weight: 700;
+    }
+    @media (max-width: 500px) {
+      .profile-header {
+        flex-direction: column;
+        text-align: center;
+        padding: 24px 16px;
+      }
+      .profile-avatar {
+        width: 80px;
+        height: 80px;
+        font-size: 2rem;
+      }
+      .profile-name { font-size: 1.2rem; }
+      .profile-email { text-align: center; }
+      .profile-badges { justify-content: center; }
+    }
+  </style>
 </head>
-<body>
+<body data-page="account">
   <header class="topbar">
     <div class="topbar-inner">
       <strong class="brand-title">Buda Partner Portal</strong>
@@ -27,39 +134,40 @@
               <p id="userMenuEmail" class="user-menu-email">-</p>
             </div>
             <div class="user-menu-actions">
-              <button id="userAvatarUploadBtn" type="button" class="btn-secondary">تغيير الصورة</button>
+              <button id="userAvatarUploadBtn" type="button" class="btn-secondary" style="display:none">تغيير الصورة</button>
               <input id="userAvatarInput" type="file" class="hidden" accept="image/*" capture="environment" />
               <button id="logoutBtn" type="button" class="btn-danger">تسجيل الخروج</button>
             </div>
           </div>
         </div>
       </div>
-      <nav class="tabs-nav">
+      <nav class="tabs-nav" aria-label="التنقل الرئيسي">
         <a data-nav="product-editor" href="product-editor.html">إضافة منتج</a>
         <a data-nav="products" href="products.html">المنتجات</a>
         <a data-nav="sales" href="sales.html">المبيعات</a>
         <a data-nav="orders" href="orders.html">الطلبات</a>
-        <a data-nav="account" href="account.html">الحساب</a>
+        <a data-nav="account" href="account.html" aria-current="page">الحساب</a>
       </nav>
     </div>
   </header>
-
   <main class="page-wrap stack account-page">
-    <section class="section-card account-hero">
-      <div class="account-hero-grid">
-        <div class="account-hero-copy">
-          <h2>إعدادات الحساب</h2>
-          <p>حدّث بيانات حسابك وتابع حالة طلب الشراكة من نفس المكان.</p>
-          <div class="account-hero-pills">
-            <span class="account-pill">تحديث فوري</span>
-            <span class="account-pill">حماية الحساب</span>
-            <span class="account-pill">بيانات دقيقة</span>
-          </div>
+    <section class="profile-header" id="profileHeader">
+      <div class="profile-avatar-wrap">
+        <div class="profile-avatar" id="profileAvatar" title="اضغط لتغيير الصورة">
+          <span id="profileAvatarFallback" style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;">?</span>
+          <img id="profileAvatarImage" class="hidden" alt="صورة الملف الشخصي" style="width:100%;height:100%;object-fit:cover;" />
         </div>
-        <div class="account-hero-notice">
-          <small>تنبيه</small>
-          <strong>البريد الإلكتروني مرتبط بحسابك الحالي ولا يمكن تغييره من هنا.</strong>
-          <p>يمكنك تغيير باقي البيانات في أي وقت.</p>
+        <div class="profile-avatar-overlay" id="profileAvatarOverlay" title="تغيير الصورة">
+          <i class="fa-solid fa-camera"></i>
+        </div>
+        <input id="profileAvatarInput" type="file" class="hidden" accept="image/*" />
+      </div>
+      <div class="profile-info">
+        <h1 class="profile-name" id="profileName">-</h1>
+        <p class="profile-email" id="profileEmail">-</p>
+        <div class="profile-badges">
+          <span class="profile-badge"><i class="fa-regular fa-circle-check"></i> شريك</span>
+          <span class="profile-badge" id="profileStatusBadge">قيد الانتظار</span>
         </div>
       </div>
     </section>
@@ -68,55 +176,42 @@
 
     <section class="section-card account-panel">
       <div class="section-head">
-        <h3>البيانات الشخصية الأساسية</h3>
+        <h3><i class="fa-regular fa-pen-to-square"></i> تحرير البيانات</h3>
         <span class="account-panel-kicker">Profile</span>
       </div>
-      <form id="accountForm" class="portal-form">
+      <form id="accountForm" class="portal-form" novalidate>
         <div class="field-grid">
           <div class="field">
             <label for="accountName">الاسم</label>
-            <input id="accountName" type="text" required />
+            <input id="accountName" type="text" required autocomplete="name" />
           </div>
           <div class="field">
             <label for="accountPhone">الهاتف</label>
-            <input id="accountPhone" type="tel" />
+            <input id="accountPhone" type="tel" autocomplete="tel" inputmode="tel" />
           </div>
         </div>
         <div class="field">
           <label for="accountEmail">البريد الإلكتروني</label>
-          <input id="accountEmail" type="email" readonly />
+          <input id="accountEmail" type="email" readonly autocomplete="email" />
         </div>
-        <button type="submit" class="btn-primary">حفظ التغييرات</button>
+        <button type="submit" class="btn-primary"><i class="fa-regular fa-floppy-disk"></i> حفظ التغييرات</button>
       </form>
     </section>
 
     <section class="section-card account-panel">
       <div class="section-head">
-        <h3>ملخص طلب الشراكة</h3>
+        <h3><i class="fa-regular fa-rectangle-ad"></i> ملخص طلب الشراكة</h3>
         <span class="account-panel-kicker">Partner</span>
       </div>
       <div id="partnerSummary"></div>
     </section>
   </main>
-
   <script src="../js/supabase.js"></script>
   <script src="../assets/js/config.js?v=20260326-1"></script>
   <script src="../assets/js/security-utils.js?v=20260324-4"></script>
-  <script src="../assets/js/supabase-service.js?v=20260405-1"></script>
-  <script src="../assets/js/session.js?v=20260327-2"></script>
+  <script src="../assets/js/supabase-service.js?v=20260712-20"></script>
+  <script src="../assets/js/session.js?v=20260712-1"></script>
   <script src="../assets/js/dashboard-topbar-menu.js?v=20260325-3"></script>
-  <script src="../assets/js/dashboard-account.js?v=20260326-2"></script>
+  <script src="../assets/js/dashboard-account.js?v=20260712-5"></script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-

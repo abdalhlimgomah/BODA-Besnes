@@ -16,6 +16,8 @@
   const state = {
     allOrders: [],
     daysFilter: 7,
+    paymentPaid: false,
+    paidUntil: 0,
   };
 
   function safeText(value) {
@@ -88,6 +90,7 @@
         salesDays.add(orderDate.toISOString().slice(0, 10));
       }
 
+      const paid = isPaidOrder(order);
       const items = Array.isArray(order.items) ? order.items : [];
       items.forEach((item) => {
         const quantity = Math.max(1, toNumber(item.quantity));
@@ -104,19 +107,25 @@
             name: itemName,
             quantity: 0,
             lineRevenue: 0,
+            unpaidQuantity: 0,
+            unpaidRevenue: 0,
           });
         }
 
         const target = grouped.get(itemKey);
         target.quantity += quantity;
         target.lineRevenue += lineRevenue;
+        if (!paid) {
+          target.unpaidQuantity += quantity;
+          target.unpaidRevenue += lineRevenue;
+        }
         target.lastUnitPrice = unitPrice;
       });
     });
 
     const productRows = [...grouped.values()].map((row) => {
-      const invoiceFee = row.lineRevenue * INVOICE_RATE;
-      const customerTax = row.quantity * FIXED_TAX_PER_UNIT;
+      const invoiceFee = row.unpaidRevenue * INVOICE_RATE;
+      const customerTax = row.unpaidQuantity * FIXED_TAX_PER_UNIT;
       const customerPay = row.lineRevenue + invoiceFee + customerTax;
       return {
         ...row,
@@ -128,7 +137,12 @@
       };
     });
 
-    productRows.sort((a, b) => b.lineRevenue - a.lineRevenue);
+    productRows.sort((a, b) => {
+      var aPaid = a.unpaidRevenue === 0 ? 1 : 0;
+      var bPaid = b.unpaidRevenue === 0 ? 1 : 0;
+      if (aPaid !== bPaid) return aPaid - bPaid;
+      return b.lineRevenue - a.lineRevenue;
+    });
 
     const totals = productRows.reduce(
       (acc, row) => {
@@ -160,7 +174,7 @@
     document.getElementById("salesRevenueTotal").textContent = money.format(summary.totals.revenue);
     document.getElementById("salesInvoiceFeeTotal").textContent = money.format(summary.totals.invoiceFee);
     document.getElementById("salesTaxTotal").textContent = money.format(summary.totals.tax);
-    document.getElementById("salesCustomerPayTotal").textContent = money.format(summary.totals.customerPay);
+    document.getElementById("salesCustomerPayTotal").textContent = money.format(summary.totals.revenue);
   }
 
   function renderSalesRows(summary) {
@@ -173,11 +187,13 @@
     }
 
     holder.innerHTML = summary.productRows
-      .map((row) => `
-        <article class="sales-row-card">
+      .map((row) => {
+        var paidBadge = row.unpaidRevenue === 0 ? '<small style="display:block;margin-top:4px;"><span style="display:inline-block;padding:1px 8px;border:1.5px solid #2e7d32;border-radius:4px;color:#2e7d32;font-weight:700;font-size:0.7rem;letter-spacing:1px;">مدفوع</span></small>' : '';
+        return `
+        <article class="sales-row-card"${row.unpaidRevenue === 0 ? ' style="opacity:0.65;"' : ''}>
           <div class="sales-row-main">
             <strong>${escapeHtml(row.name)}</strong>
-            <small class="muted">كمية مباعة: ${integer.format(row.quantity)} وحدة</small>
+            <small class="muted">كمية مباعة: ${integer.format(row.quantity)} وحدة${paidBadge}</small>
           </div>
           <div class="sales-row-metrics">
             <span><small>السعر المتوسط</small><strong>${money.format(row.unitPrice)}</strong></span>
@@ -185,8 +201,8 @@
             <span><small>رسوم 5%</small><strong>${money.format(row.invoiceFee)}</strong></span>
             <span><small>ضريبة العميل</small><strong>${money.format(row.customerTax)}</strong></span>
           </div>
-        </article>
-      `)
+        </article>`;
+      })
       .join("");
   }
 
@@ -199,24 +215,27 @@
       return;
     }
 
-    holder.innerHTML = summary.productRows
-      .map((row) => `
-        <article class="sales-invoice-card">
-          <div class="sales-invoice-head">
-            <h4>${escapeHtml(row.name)}</h4>
-            <span class="pill">إجمالي عميل: ${money.format(row.customerPay)}</span>
-          </div>
-          <div class="sales-invoice-grid">
-            <div><small>الكمية</small><strong>${integer.format(row.quantity)}</strong></div>
-            <div><small>سعر المنتج</small><strong>${money.format(row.lineRevenue)}</strong></div>
-            <div><small>رسوم الفاتورة 5%</small><strong>${money.format(row.invoiceFee)}</strong></div>
-            <div><small>الضريبة الثابتة</small><strong>${money.format(row.customerTax)}</strong></div>
-            <div><small>صافي البائع</small><strong>${money.format(row.merchantNet)}</strong></div>
-            <div><small>المدفوع من العميل</small><strong>${money.format(row.customerPay)}</strong></div>
-          </div>
-        </article>
-      `)
-      .join("");
+    var fee = summary.totals.invoiceFee;
+    var tax = summary.totals.tax;
+    var totalFees = fee + tax;
+
+    holder.innerHTML =
+      '<article class="sales-invoice-card invoice-summary">' +
+        '<div class="invoice-summary-items">' +
+          '<div class="invoice-summary-item">' +
+            '<span class="invoice-summary-label">إجمالي رسوم المنصة</span>' +
+            '<strong class="invoice-summary-value">' + money.format(fee) + '</strong>' +
+          '</div>' +
+          '<div class="invoice-summary-item">' +
+            '<span class="invoice-summary-label">إجمالي الضريبة المضافة</span>' +
+            '<strong class="invoice-summary-value">' + money.format(tax) + '</strong>' +
+          '</div>' +
+          '<a href="transfer.html?amount=' + encodeURIComponent(totalFees) + '" class="invoice-summary-item invoice-summary-total invoice-summary-clickable">' +
+            '<span class="invoice-summary-label">رسوم + ضريبة = الإجمالي</span>' +
+            '<strong class="invoice-summary-value">' + money.format(totalFees) + '</strong>' +
+          '</a>' +
+        '</div>' +
+      '</article>';
   }
 
   function render() {
@@ -238,9 +257,37 @@
     });
   }
 
+  async function loadPaymentStatus() {
+    try {
+      var user = await window.PartnerSession.requireAuth({ requirePartner: true });
+      if (!user) return;
+      var email = user.email;
+      var { data } = await window.PartnerAPI.raw().from('transfer_requests').select('created_at').eq('email', email).eq('status', 'approved').order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (data && data.created_at) {
+        state.paidUntil = new Date(data.created_at).getTime();
+        state.paymentPaid = true;
+      } else {
+        state.paidUntil = 0;
+        state.paymentPaid = false;
+      }
+    } catch (e) {
+      state.paidUntil = 0;
+      state.paymentPaid = false;
+    }
+  }
+
+  function isPaidOrder(order) {
+    if (!state.paymentPaid || !state.paidUntil) return false;
+    var stamp = Date.parse(order.createdAt || "");
+    return Number.isFinite(stamp) && stamp <= state.paidUntil;
+  }
+
   async function loadOrders() {
     try {
-      state.allOrders = await window.PartnerAPI.getPartnerOrders();
+      var user = await window.PartnerSession.requireAuth({ requirePartner: true });
+      var email = (user?.email || "").toLowerCase().trim();
+      state.allOrders = await window.PartnerAPI.getPartnerOrders(email || null);
+      await loadPaymentStatus();
       render();
     } catch (error) {
       console.error("sales load orders error", error);
