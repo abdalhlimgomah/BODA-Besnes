@@ -1018,15 +1018,104 @@
     form.addEventListener("submit", handleLoginSubmit);
   }
 
+  function getGoogleClientId() {
+    return (window.APP_CONFIG && window.APP_CONFIG.GOOGLE_CLIENT_ID) || "";
+  }
+
+  function startGoogleOAuth() {
+    var clientId = getGoogleClientId();
+    if (!clientId) {
+      notify("تسجيل الدخول عبر Google غير متاح حالياً.");
+      return;
+    }
+
+    var redirectUri = window.location.origin + "/auth/login.html";
+    var scope = "openid email profile";
+    var state = Math.random().toString(36).slice(2, 15);
+
+    window.location.href = "https://accounts.google.com/o/oauth2/v2/auth?" +
+      "client_id=" + encodeURIComponent(clientId) +
+      "&redirect_uri=" + encodeURIComponent(redirectUri) +
+      "&response_type=code" +
+      "&scope=" + encodeURIComponent(scope) +
+      "&state=" + encodeURIComponent(state);
+  }
+
+  async function handleGoogleCallback() {
+    var params = new URLSearchParams(window.location.search);
+    var code = params.get("code");
+    if (!code) return;
+
+    var edgeUrl = (window.APP_CONFIG && window.APP_CONFIG.GOOGLE_OAUTH_EDGE_URL) ||
+      "https://msgqzgzoslearaprgiqq.supabase.co/functions/v1/google-oauth";
+    var redirectUri = window.location.origin + "/auth/login.html";
+
+    try {
+      var response = await fetch(edgeUrl, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: code, redirect_uri: redirectUri }),
+      });
+
+      var userData = await response.json();
+      if (!response.ok || !userData.email) {
+        notify("فشل تسجيل الدخول عبر Google.");
+        return;
+      }
+
+      var googleUser = {
+        id: "google_" + userData.id,
+        email: userData.email,
+        name: userData.name || "مستخدم Google",
+        picture: userData.picture || "",
+        provider: "google",
+        loginTime: new Date().toISOString(),
+      };
+
+      if (window.PartnerSession?.setCurrentUser) {
+        window.PartnerSession.setCurrentUser(googleUser);
+      } else {
+        localStorage.setItem("currentUser", JSON.stringify(googleUser));
+        localStorage.setItem("isLoggedIn", "true");
+        localStorage.setItem("userEmail", googleUser.email);
+        localStorage.setItem("userFullName", googleUser.name);
+        localStorage.setItem("userAvatar", googleUser.picture);
+        localStorage.setItem("authSource", "google");
+      }
+
+      params.delete("code");
+      params.delete("state");
+      var cleanQuery = params.toString();
+      var cleanUrl = window.location.pathname + (cleanQuery ? "?" + cleanQuery : "") + window.location.hash;
+      window.history.replaceState({}, "", cleanUrl);
+
+      notify("مرحبًا " + (userData.name || "مستخدم Google"), "success");
+      setTimeout(function () {
+        window.location.href = window.APP_ROUTES ? window.APP_ROUTES.partnership : "../partnership/form.html";
+      }, 350);
+    } catch (error) {
+      console.error("Google OAuth error:", error);
+      notify("فشل الاتصال بخدمة Google.");
+    }
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     const page = document.body?.dataset?.page || "";
-    if (page === "signup") initSignupPage();
+    if (page === "login") {
+      initLoginPage();
+      handleGoogleCallback();
+    }
+    if (page === "signup") {
+      initSignupPage();
+      handleGoogleCallback();
+    }
     if (page === "verify") initVerifyPage();
-    if (page === "login") initLoginPage();
   });
 
   window.addEventListener("beforeunload", () => {
     if (resendTimer) clearInterval(resendTimer);
   });
+  window.startGoogleOAuth = startGoogleOAuth;
+  window.handleGoogleCallback = handleGoogleCallback;
 })();
 

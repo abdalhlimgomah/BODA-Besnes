@@ -6,6 +6,8 @@
     SUPABASE_ANON_KEY:
       "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1zZ3F6Z3pvc2xlYXJhcHJnaXFxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzMzk3MTIsImV4cCI6MjA4NTkxNTcxMn0.fQu1toCisGIly8FZqHy3yoEwnY-e7vthk8PCmkBMifE",
     EMAILJS_PUBLIC_KEY: "aN8diTdM6f4VzJ3m7",
+    GOOGLE_CLIENT_ID: "768837122951-kk6i57qs3hkpjnvavhfes0h51j774q3s.apps.googleusercontent.com",
+    GOOGLE_OAUTH_EDGE_URL: "https://msgqzgzoslearaprgiqq.supabase.co/functions/v1/google-oauth",
     EMAILJS_SERVICE_ID: "service_0yeuev9",
     EMAILJS_TEMPLATE_ID: "template_ulxjz0r",
     OTP_LENGTH: 6,
